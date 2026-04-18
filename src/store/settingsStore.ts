@@ -8,6 +8,10 @@ const EMPTY_GLOBAL_SETTINGS: GlobalSettings = {
   baseUrlOpenai: 'https://api.openai.com/v1',
   baseUrlAnthropic: 'https://api.anthropic.com',
   baseUrlGemini: 'https://generativelanguage.googleapis.com',
+  tavilyApiKey: '',
+  webSearchEnabled: true,
+  autoTitleMode: 'every',
+  thinkingEffort: 'off',
 };
 
 interface SettingsState {

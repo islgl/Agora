@@ -7,4 +7,8 @@ pub struct Conversation {
     pub title: String,
     pub created_at: i64,
     pub model_id: String,
+    #[serde(default)]
+    pub pinned: bool,
+    #[serde(default)]
+    pub title_locked: bool,
 }

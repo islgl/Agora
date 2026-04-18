@@ -4,6 +4,8 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { useSettingsStore } from '@/store/settingsStore';
 import { ProviderIcon } from './ProviderIcon';
+import { MaskedKeyInput } from './MaskedKeyInput';
+import { SectionDivider } from './SectionDivider';
 import type { GlobalSettings, Provider } from '@/types';
 
 const INPUT_CLASS =
@@ -17,7 +19,9 @@ const PROVIDER_LABEL: Record<Provider, string> = {
   gemini: 'Gemini',
 };
 
-const BASE_URL_FIELD: Record<Provider, keyof GlobalSettings> = {
+type BaseUrlField = 'baseUrlOpenai' | 'baseUrlAnthropic' | 'baseUrlGemini';
+
+const BASE_URL_FIELD: Record<Provider, BaseUrlField> = {
   openai: 'baseUrlOpenai',
   anthropic: 'baseUrlAnthropic',
   gemini: 'baseUrlGemini',
@@ -55,24 +59,25 @@ export function ProvidersForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
+    <form onSubmit={handleSubmit} className="space-y-6">
       <div className="space-y-1.5">
         <Label htmlFor="apiKey" className="text-sm text-muted-foreground">
           API key
         </Label>
-        <Input
+        <MaskedKeyInput
           id="apiKey"
-          type="password"
           placeholder="••••"
           className={INPUT_CLASS}
           value={form.apiKey}
-          onChange={(e) => setForm((f) => ({ ...f, apiKey: e.target.value }))}
+          onChange={(next) => setForm((f) => ({ ...f, apiKey: next }))}
         />
         <p className="text-xs text-muted-foreground">
           Shared across every provider — useful when all traffic goes through a
           single gateway.
         </p>
       </div>
+
+      <SectionDivider />
 
       <div className="space-y-3">
         <Label className="text-sm text-muted-foreground">Base URLs</Label>

@@ -12,7 +12,7 @@ const EXPAND_BUTTON_LEFT_PX = 92; // sits past the traffic-light cluster
 
 export function WindowControls({ onOpenSidebar }: WindowControlsProps) {
   return (
-    <>
+    <div data-chat-print="hide">
       {/* Draggable strip across the top so the frameless window stays movable. */}
       <div
         data-tauri-drag-region
@@ -39,6 +39,6 @@ export function WindowControls({ onOpenSidebar }: WindowControlsProps) {
           <PanelLeft className="size-3.5" />
         </Button>
       </div>
-    </>
+    </div>
   );
 }

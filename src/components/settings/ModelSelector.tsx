@@ -1,12 +1,20 @@
+import { Fragment } from 'react';
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { ChevronDown, Check } from 'lucide-react';
 import { useSettingsStore } from '@/store/settingsStore';
-import { ProviderIcon } from './ProviderIcon';
+import {
+  ProviderIcon,
+  PROVIDER_DISPLAY_LABEL,
+  PROVIDER_ORDER,
+} from './ProviderIcon';
 
 export function ModelSelector() {
   const { modelConfigs, activeModelId, setActiveModel } = useSettingsStore();
@@ -17,6 +25,11 @@ export function ModelSelector() {
       <span className="text-xs text-muted-foreground px-1">No models configured</span>
     );
   }
+
+  const groups = PROVIDER_ORDER.map((p) => ({
+    provider: p,
+    models: modelConfigs.filter((m) => m.provider === p),
+  })).filter((g) => g.models.length > 0);
 
   return (
     <DropdownMenu>
@@ -31,24 +44,41 @@ export function ModelSelector() {
         <ChevronDown className="size-3 shrink-0" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-[14rem] max-w-[22rem]">
-        {modelConfigs.map((m) => {
-          const active = m.id === activeModelId;
-          return (
-            <DropdownMenuItem
-              key={m.id}
-              onClick={() => setActiveModel(m.id)}
-              className={`flex items-center gap-2 whitespace-nowrap ${
-                active ? 'font-medium text-foreground' : 'text-muted-foreground'
-              }`}
-            >
-              <ProviderIcon provider={m.provider} className="size-3.5 shrink-0" />
-              <span className="truncate flex-1">{m.name}</span>
-              <Check
-                className={`size-3 shrink-0 text-primary ${active ? 'opacity-100' : 'opacity-0'}`}
+        {groups.map(({ provider, models }, i) => (
+          <Fragment key={provider}>
+            {i > 0 && (
+              <DropdownMenuSeparator
+                className="h-0 bg-transparent border-t border-dashed border-border/60 my-1.5"
               />
-            </DropdownMenuItem>
-          );
-        })}
+            )}
+            <DropdownMenuGroup>
+              <DropdownMenuLabel
+                className="flex items-center gap-1.5 px-1.5 py-1
+                           text-sm font-semibold text-foreground"
+              >
+                <ProviderIcon provider={provider} className="size-4 shrink-0" />
+                <span>{PROVIDER_DISPLAY_LABEL[provider]}</span>
+              </DropdownMenuLabel>
+              {models.map((m) => {
+                const active = m.id === activeModelId;
+                return (
+                  <DropdownMenuItem
+                    key={m.id}
+                    onClick={() => setActiveModel(m.id)}
+                    className={`flex items-center gap-2 whitespace-nowrap pl-7 ${
+                      active ? 'font-medium text-foreground' : 'text-muted-foreground'
+                    }`}
+                  >
+                    <span className="truncate flex-1">{m.name}</span>
+                    <Check
+                      className={`size-3 shrink-0 text-primary ${active ? 'opacity-100' : 'opacity-0'}`}
+                    />
+                  </DropdownMenuItem>
+                );
+              })}
+            </DropdownMenuGroup>
+          </Fragment>
+        ))}
       </DropdownMenuContent>
     </DropdownMenu>
   );

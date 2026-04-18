@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { invoke } from '@tauri-apps/api/core';
+import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useSettingsStore } from '@/store/settingsStore';
@@ -42,12 +44,14 @@ const INPUT_CLASS =
   'placeholder:text-muted-foreground';
 
 export function ModelForm({ existing, onClose }: ModelFormProps) {
-  const { addModelConfig, updateModelConfig } = useSettingsStore();
+  const { addModelConfig, updateModelConfig, resolveModelConfig } =
+    useSettingsStore();
   const [form, setForm] = useState({
     name: existing?.name ?? '',
     provider: existing?.provider ?? ('openai' as Provider),
     model: existing?.model ?? '',
   });
+  const [testing, setTesting] = useState(false);
 
   const preset = PROVIDER_PRESETS[form.provider];
 
@@ -74,6 +78,32 @@ export function ModelForm({ existing, onClose }: ModelFormProps) {
       });
     }
     onClose();
+  };
+
+  const handleTest = async () => {
+    if (!form.model.trim()) {
+      toast.error('Enter a model ID first');
+      return;
+    }
+    const resolved = resolveModelConfig({
+      id: existing?.id ?? '',
+      name: form.name || form.model,
+      provider: form.provider,
+      model: form.model,
+      baseUrl: '',
+      apiKey: '',
+    });
+    setTesting(true);
+    try {
+      const msg = await invoke<string>('test_model_config', {
+        modelConfig: resolved,
+      });
+      toast.success(msg);
+    } catch (err) {
+      toast.error(String(err));
+    } finally {
+      setTesting(false);
+    }
   };
 
   return (
@@ -144,23 +174,35 @@ export function ModelForm({ existing, onClose }: ModelFormProps) {
         tab.
       </p>
 
-      <div className="flex justify-end gap-2 pt-2">
+      <div className="flex items-center justify-between gap-2 pt-2">
         <button
           type="button"
-          onClick={onClose}
-          className="px-4 py-2 rounded-xl text-sm text-muted-foreground hover:text-foreground
-                     hover:bg-accent transition-colors"
+          onClick={() => void handleTest()}
+          disabled={testing}
+          className="px-4 py-2 rounded-xl text-sm text-foreground bg-card
+                     hover:bg-accent transition-colors disabled:opacity-60"
+          style={{ boxShadow: '0 0 0 1px var(--border)' }}
         >
-          Cancel
+          {testing ? 'Testing…' : 'Test connection'}
         </button>
-        <button
-          type="submit"
-          className="px-4 py-2 rounded-xl text-sm text-primary-foreground bg-primary
-                     hover:bg-primary/90 transition-colors"
-          style={{ boxShadow: '0 0 0 1px var(--primary)' }}
-        >
-          {existing ? 'Save' : 'Add model'}
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 rounded-xl text-sm text-muted-foreground hover:text-foreground
+                       hover:bg-accent transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            className="px-4 py-2 rounded-xl text-sm text-primary-foreground bg-primary
+                       hover:bg-primary/90 transition-colors"
+            style={{ boxShadow: '0 0 0 1px var(--primary)' }}
+          >
+            {existing ? 'Save' : 'Add model'}
+          </button>
+        </div>
       </div>
     </form>
   );

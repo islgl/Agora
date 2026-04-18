@@ -28,3 +28,40 @@ sqlx = { version = "0.8", default-features = false, features = [
     "sqlite",
     "macros",
 ] }
+rmcp = { version = "=1.5.0", default-features = false, features = [
+    "client",
+    "transport-child-process",
+    "transport-streamable-http-client-reqwest",
+    "reqwest",
+] }
+gray_matter = { version = "0.2", default-features = false, features = ["yaml"] }
+tauri-plugin-dialog = "2"
+base64 = "0.22"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", features = [
+    "NSSharingService",
+    "NSView",
+    "NSWindow",
+    "NSResponder",
+    "NSApplication",
+] }
+objc2-foundation = { version = "0.3", features = [
+    "NSString",
+    "NSArray",
+    "NSURL",
+    "NSGeometry",
+    "NSData",
+    "NSValue",
+    "NSError",
+] }
+objc2-web-kit = { version = "0.3", features = [
+    "WKWebView",
+    "WKWebViewConfiguration",
+    "WKPDFConfiguration",
+    "objc2-core-foundation",
+    "block2",
+] }
+objc2-core-foundation = { version = "0.3", features = ["CFCGTypes"] }
+block2 = "0.6"

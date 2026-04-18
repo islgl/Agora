@@ -7,9 +7,9 @@ use crate::models::Conversation;
 #[tauri::command]
 pub async fn load_conversations(pool: State<'_, DbPool>) -> Result<Vec<Conversation>, String> {
     sqlx::query_as::<_, Conversation>(
-        "SELECT id, title, created_at, model_id \
+        "SELECT id, title, created_at, model_id, pinned, title_locked \
          FROM conversations \
-         ORDER BY created_at DESC",
+         ORDER BY pinned DESC, created_at DESC",
     )
     .fetch_all(&*pool)
     .await
@@ -27,11 +27,13 @@ pub async fn create_conversation(
         title,
         created_at: now_millis(),
         model_id,
+        pinned: false,
+        title_locked: false,
     };
 
     sqlx::query(
-        "INSERT INTO conversations (id, title, created_at, model_id) \
-         VALUES (?, ?, ?, ?)",
+        "INSERT INTO conversations (id, title, created_at, model_id, pinned, title_locked) \
+         VALUES (?, ?, ?, ?, 0, 0)",
     )
     .bind(&conversation.id)
     .bind(&conversation.title)
@@ -55,14 +57,50 @@ pub async fn delete_conversation(pool: State<'_, DbPool>, id: String) -> Result<
     Ok(())
 }
 
+/// Renaming by the user locks the title so auto-summarization won't overwrite.
 #[tauri::command]
 pub async fn rename_conversation(
     pool: State<'_, DbPool>,
     id: String,
     title: String,
 ) -> Result<(), String> {
-    sqlx::query("UPDATE conversations SET title = ? WHERE id = ?")
+    sqlx::query("UPDATE conversations SET title = ?, title_locked = 1 WHERE id = ?")
         .bind(&title)
+        .bind(&id)
+        .execute(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Internal auto-title update — does NOT flip `title_locked`.
+#[tauri::command]
+pub async fn update_conversation_title_auto(
+    pool: State<'_, DbPool>,
+    id: String,
+    title: String,
+) -> Result<(), String> {
+    // Double-check the lock at write time in case the user renamed while a
+    // background summarization was in flight.
+    sqlx::query(
+        "UPDATE conversations SET title = ? WHERE id = ? AND title_locked = 0",
+    )
+    .bind(&title)
+    .bind(&id)
+    .execute(&*pool)
+    .await
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn set_conversation_pinned(
+    pool: State<'_, DbPool>,
+    id: String,
+    pinned: bool,
+) -> Result<(), String> {
+    sqlx::query("UPDATE conversations SET pinned = ? WHERE id = ?")
+        .bind(pinned)
         .bind(&id)
         .execute(&*pool)
         .await

@@ -1,10 +1,19 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { PanelLeft, Search, Settings, Sun, Moon, SquarePen } from 'lucide-react';
+import {
+  PanelLeft,
+  Search,
+  Settings,
+  Sun,
+  Moon,
+  SquarePen,
+  SlidersHorizontal,
+} from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useEffect } from 'react';
 import { ConversationList } from './ConversationList';
+import { SelectionBar } from './SelectionBar';
 import { SettingsDialog } from '@/components/settings/SettingsDialog';
 import { useChatStore } from '@/store/chatStore';
 import { useSettingsStore } from '@/store/settingsStore';
@@ -24,15 +33,38 @@ const HEADER_HEIGHT_PX = 44;
 export function AppSidebar({ open, onOpenChange }: AppSidebarProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [search, setSearch] = useState('');
-  const { createConversation } = useChatStore();
+  const {
+    startNewConversation,
+    conversations,
+    selectionMode,
+    enterSelectionMode,
+    exitSelectionMode,
+  } = useChatStore();
   const { activeModelId } = useSettingsStore();
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => setMounted(true), []);
 
+  // Esc exits selection mode for quick cancellation.
+  useEffect(() => {
+    if (!selectionMode) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') exitSelectionMode();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selectionMode, exitSelectionMode]);
+
+  const filteredIds = (search.trim()
+    ? conversations.filter((c) =>
+        c.title.toLowerCase().includes(search.toLowerCase())
+      )
+    : conversations
+  ).map((c) => c.id);
+
   const handleNew = () => {
-    createConversation('New conversation', activeModelId ?? '');
+    void startNewConversation(activeModelId ?? '');
   };
 
   const toggleTheme = () => {
@@ -47,6 +79,7 @@ export function AppSidebar({ open, onOpenChange }: AppSidebarProps) {
     <>
       <aside
         aria-hidden={!open}
+        data-chat-print="hide"
         className={`fixed left-2 bottom-2 z-40 w-60 flex flex-col overflow-hidden
                     rounded-[10px] border border-sidebar-border
                     bg-sidebar/70 backdrop-blur-xl backdrop-saturate-150
@@ -80,6 +113,15 @@ export function AppSidebar({ open, onOpenChange }: AppSidebarProps) {
               variant="ghost"
               size="icon"
               className={iconClass}
+              onClick={() => (selectionMode ? exitSelectionMode() : enterSelectionMode())}
+              title={selectionMode ? 'Exit selection' : 'Select conversations'}
+            >
+              <SlidersHorizontal className="size-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className={iconClass}
               onClick={toggleTheme}
               title="Toggle theme"
             >
@@ -101,20 +143,24 @@ export function AppSidebar({ open, onOpenChange }: AppSidebarProps) {
           </div>
         </div>
 
-        {/* Search */}
-        <div className="px-3 pb-3">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
-            <Input
-              placeholder="Search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-8 h-8 text-sm bg-sidebar-accent border-transparent rounded-lg
-                         placeholder:text-muted-foreground text-sidebar-foreground
-                         focus-visible:ring-0 focus-visible:border-ring"
-            />
+        {/* Search OR selection bar */}
+        {selectionMode ? (
+          <SelectionBar visibleIds={filteredIds} />
+        ) : (
+          <div className="px-3 pb-3">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
+              <Input
+                placeholder="Search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-8 h-8 text-sm bg-sidebar-accent border-transparent rounded-lg
+                           placeholder:text-muted-foreground text-sidebar-foreground
+                           focus-visible:ring-0 focus-visible:border-ring"
+              />
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Conversation list */}
         <div className="flex-1 min-h-0 overflow-y-auto px-2">

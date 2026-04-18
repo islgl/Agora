@@ -1,5 +1,15 @@
-pub mod chat;
+pub mod ai_proxy;
+pub mod branches;
+pub mod tool_bridge;
 pub mod conversations;
+pub mod export;
 pub mod global_settings;
+pub mod mcp;
 pub mod messages;
+pub mod model_test;
 pub mod models;
+pub mod pdf;
+pub mod search;
+pub mod share;
+pub mod skills;
+pub mod title;

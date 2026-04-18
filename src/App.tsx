@@ -4,13 +4,14 @@ import { Toaster } from '@/components/ui/sonner';
 import { AppSidebar } from '@/components/layout/AppSidebar';
 import { WindowControls } from '@/components/layout/WindowControls';
 import { ChatArea } from '@/components/chat/ChatArea';
+import { PrintOverlay } from '@/components/chat/PrintOverlay';
 import { useChatStore } from '@/store/chatStore';
 import { useSettingsStore } from '@/store/settingsStore';
 
 const SIDEBAR_OFFSET_REM = 16; // 15rem card + 1rem padding
 
 export default function App() {
-  const { loadConversations, createConversation } = useChatStore();
+  const { loadConversations, startNewConversation } = useChatStore();
   const { loadModelConfigs, loadGlobalSettings, activeModelId } = useSettingsStore();
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -24,7 +25,7 @@ export default function App() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
         e.preventDefault();
-        createConversation('New conversation', activeModelId ?? '');
+        void startNewConversation(activeModelId ?? '');
       }
       if ((e.metaKey || e.ctrlKey) && e.key === 'b') {
         e.preventDefault();
@@ -33,7 +34,7 @@ export default function App() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [createConversation, activeModelId]);
+  }, [startNewConversation, activeModelId]);
 
   return (
     <TooltipProvider>
@@ -49,6 +50,8 @@ export default function App() {
         <AppSidebar open={sidebarOpen} onOpenChange={setSidebarOpen} />
 
         {!sidebarOpen && <WindowControls onOpenSidebar={() => setSidebarOpen(true)} />}
+
+        <PrintOverlay />
 
         <Toaster position="top-center" />
       </div>

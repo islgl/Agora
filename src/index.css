@@ -2,6 +2,15 @@
 @plugin "@tailwindcss/typography";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+/* KaTeX stylesheet — without it, remark-math/rehype-katex emits the correct
+   DOM but the browser paints it as unstyled text with broken spacing. */
+@import "katex/dist/katex.min.css";
+
+/* Streamdown ships its UI precompiled, so Tailwind v4 must scan its dist
+   bundles to generate the arbitrary utilities (notably `bg-[var(--sdm-bg)]`
+   and `text-[var(--sdm-c)]`) that Shiki relies on for token colors. */
+@source "../node_modules/streamdown/dist/*.js";
+@source "../node_modules/@streamdown/code/dist/*.js";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -91,6 +100,11 @@
   --ring-warm:           #d1cfc5;
   --ring-deep:           #c2c0b6;
   --coral:               #d97757;
+  /* Code-block header strip — a step darker / greyer than `--muted`, so the
+     language chip + copy button reads as a header over the code body. */
+  --code-header-bg:      #e0ddd4;
+  /* Inline `code` color — Plum from the Nous palette, warm + muted. */
+  --inline-code-fg:      #6e4a5a;
 
   /* Radius base */
   --radius: 0.75rem;
@@ -147,6 +161,10 @@
   --ring-warm:           #3d3d3a;
   --ring-deep:           #4d4c48;
   --coral:               #d97757;
+  /* Dark variant — one step darker/greyer than `--muted` (#262524). */
+  --code-header-bg:      #1a1917;
+  /* Plum bright for dark mode, per the Nous palette. */
+  --inline-code-fg:      #a68898;
 
   /* Sidebar — slightly darker than bg to read as "below" content */
   --sidebar:                    #1a1917;
@@ -190,11 +208,16 @@
 
 /* ─── Prose overrides for chat messages ─── */
 .prose {
-  --tw-prose-body: var(--muted-foreground);
+  /* Body text uses the full foreground — muted-foreground read as aside /
+     caption rather than primary content. */
+  --tw-prose-body: var(--foreground);
   --tw-prose-headings: var(--foreground);
   --tw-prose-code: var(--foreground);
-  --tw-prose-pre-bg: #30302e;
-  --tw-prose-pre-code: #faf9f5;
+  /* Block code renders via the `.not-prose` CodeBlock primitive, so these only
+     affect any raw <pre>/<code> that slips through. Transparent/inherit lets
+     that fallback pick up surrounding theme tokens instead of a dark slab. */
+  --tw-prose-pre-bg: transparent;
+  --tw-prose-pre-code: inherit;
   --tw-prose-links: var(--primary);
   --tw-prose-bold: var(--foreground);
   --tw-prose-quotes: var(--muted-foreground);
@@ -202,13 +225,217 @@
 }
 
 .dark .prose {
-  --tw-prose-body: var(--muted-foreground);
+  --tw-prose-body: var(--foreground);
   --tw-prose-headings: var(--foreground);
   --tw-prose-code: var(--foreground);
-  --tw-prose-pre-bg: #0f0e0d;
-  --tw-prose-pre-code: #faf9f5;
+  --tw-prose-pre-bg: transparent;
+  --tw-prose-pre-code: inherit;
   --tw-prose-links: var(--coral);
   --tw-prose-bold: var(--foreground);
   --tw-prose-quotes: var(--muted-foreground);
   --tw-prose-quote-borders: var(--border);
+}
+
+/* ─── Shiki dual-theme switch ───
+   `CodeBlockCode` calls `codeToHtml({ themes: { light, dark }, defaultColor: 'light' })`
+   which bakes the light theme's color/background inline. We override the
+   <pre> background so the warm CodeBlock card colour shows through (Shiki
+   would otherwise paint stark #fff in light mode), and swap token colors to
+   the dark palette under `.dark`. Token backgrounds are dropped — only the
+   pre's background was ever meaningful. */
+.shiki {
+  background-color: transparent !important;
+}
+
+.dark .shiki,
+.dark .shiki span {
+  color: var(--shiki-dark) !important;
+  font-style: var(--shiki-dark-font-style) !important;
+  font-weight: var(--shiki-dark-font-weight) !important;
+  text-decoration: var(--shiki-dark-text-decoration) !important;
+}
+
+/* Inline <code> inside prose — subtle chip style that blends with parchment.
+   Block code is rendered via the `.not-prose` CodeBlock so it's excluded by
+   typography's own scoping rules; `:not(pre code)` covers any raw fallback.
+   Plum ink from the Nous palette over the warm-grey `--muted` chip, so the
+   inline token pops a little without breaking the warm tone. */
+.prose :where(code):not(pre code) {
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.25rem;
+  background: var(--muted);
+  color: var(--inline-code-fg);
+  font-size: 0.875em;
+  font-weight: 400;
+}
+.prose :where(code):not(pre code)::before,
+.prose :where(code):not(pre code)::after {
+  content: none;
+}
+
+/* GFM task-lists: tint the native checkbox with the Claude terracotta so a
+   checked item reads as warm-red instead of the OS accent (usually blue). */
+.prose input[type='checkbox'] {
+  accent-color: var(--primary);
+  margin-right: 0.4em;
+  transform: translateY(-0.05em);
+}
+
+/* ─── LaTeX booktabs / 三线表 for markdown tables ───
+   Streamdown ships a double-frame table (outer `bg-sidebar` wrapper + inner
+   rounded/bordered div + `divide-y` rows). Flatten both frames and paint the
+   classic academic pattern: thick top rule above the header, thin rule under
+   it, thick rule below the last row — nothing else. No vertical lines, no
+   inter-row dividers, no header fill. */
+.prose [data-streamdown="table-wrapper"] {
+  margin: 1rem 0;
+  padding: 0;
+  gap: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+/* The inner div Streamdown wraps around <table> for overflow carries its own
+   border + rounded + bg — strip it so the rules are the only chrome. The
+   explicit `min-width: 0` keeps it from expanding past the message column
+   when a wide table's intrinsic width would otherwise trigger flex's default
+   `min-width: auto` blowout. */
+.prose [data-streamdown="table-wrapper"] > div:has(> [data-streamdown="table"]) {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  overflow-x: auto;
+  min-width: 0;
+}
+
+.prose [data-streamdown="table"] {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875em;
+  margin: 0;
+}
+
+.prose [data-streamdown="table-header"] {
+  background: transparent;
+  border: 0;
+}
+
+/* Top rule (\toprule) + mid rule (\midrule) under the header. */
+.prose [data-streamdown="table-header"] [data-streamdown="table-row"] {
+  border-top: 2px solid var(--foreground);
+  border-bottom: 1px solid var(--foreground);
+}
+
+/* Drop divide-y between body rows; bottom rule (\bottomrule) on the last. */
+.prose [data-streamdown="table-body"] [data-streamdown="table-row"] {
+  border-top: 0;
+  border-bottom: 0;
+}
+.prose [data-streamdown="table-body"] [data-streamdown="table-row"]:last-child {
+  border-bottom: 2px solid var(--foreground);
+}
+
+.prose [data-streamdown="table-header-cell"],
+.prose [data-streamdown="table-cell"] {
+  padding: 0.5rem 0.875rem;
+  text-align: left;
+  vertical-align: top;
+  border: 0;
+}
+
+.prose [data-streamdown="table-header-cell"] {
+  font-weight: 600;
+  color: var(--foreground);
+  white-space: nowrap;
+}
+
+.prose [data-streamdown="table-cell"] {
+  color: var(--foreground);
+}
+
+/* ─── Print / Export-as-PDF layout ───
+   Two capture paths share this block:
+   1. `window.print()` / ⌘P — handled by the `@media print` rules below.
+   2. `WKWebView.createPDFWithConfiguration:` (invoked by the Rust side) —
+      uses *screen* media, so the overlay-active rules must live outside
+      `@media print` too. They hide the app chrome, loosen the root's
+      `h-dvh overflow-hidden` so the document grows to the overlay's
+      natural height, and let the PDF rect capture the whole conversation
+      instead of just the viewport.
+   PrintOverlay is hidden by default; activation flips it to a block. */
+[data-print-overlay="active"] {
+  display: none;
+}
+
+body[data-print-overlay-active] {
+  overflow: visible !important;
+}
+body[data-print-overlay-active] #root > div {
+  height: auto !important;
+  min-height: 100dvh;
+  overflow: visible !important;
+}
+body[data-print-overlay-active] main,
+body[data-print-overlay-active] aside,
+body[data-print-overlay-active] [data-chat-print="hide"] {
+  display: none !important;
+}
+body[data-print-overlay-active] [data-print-overlay="active"] {
+  display: block !important;
+}
+
+@media print {
+  html,
+  body,
+  #root {
+    background: #fff !important;
+    color: #000 !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  [data-chat-print="hide"] {
+    display: none !important;
+  }
+
+  /* The message list scroller: expand fully, drop the fade mask. */
+  [data-chat-print="scroller"] {
+    max-height: none !important;
+    overflow: visible !important;
+    -webkit-mask-image: none !important;
+    mask-image: none !important;
+  }
+
+  /* Hover-revealed actions stay hidden (already opacity-0, but be explicit). */
+  .group\/item [data-slot="dropdown-menu-trigger"],
+  .group [data-slot="dropdown-menu-trigger"] {
+    display: none !important;
+  }
+
+  /* Assistant message bubbles have extra max-width caps for screens; let them
+     use the full page width in print. */
+  [data-chat-print="message"] {
+    max-width: 100% !important;
+  }
+
+  /* Avoid awkward page breaks inside a single message block. */
+  [data-chat-print="message"],
+  pre,
+  blockquote {
+    break-inside: avoid;
+  }
+
+  /* When a print overlay is mounted (body has the activation attr), hide the
+     main app chrome + chat pane entirely and let the overlay's content drive
+     the printed pages. Using a body attribute avoids relying on `:has()`
+     which is still flaky in some WKWebView builds. */
+  body[data-print-overlay-active] main,
+  body[data-print-overlay-active] aside,
+  body[data-print-overlay-active] [data-chat-print="hide"] {
+    display: none !important;
+  }
+  body[data-print-overlay-active] [data-print-overlay="active"] {
+    display: block !important;
+  }
 }

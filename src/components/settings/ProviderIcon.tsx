@@ -19,6 +19,14 @@ const PROVIDER_LABEL: Record<Provider, string> = {
   gemini: 'Gemini',
 };
 
+export const PROVIDER_DISPLAY_LABEL: Record<Provider, string> = {
+  openai: 'OpenAI',
+  anthropic: 'Anthropic',
+  gemini: 'Google',
+};
+
+export const PROVIDER_ORDER: Provider[] = ['anthropic', 'openai', 'gemini'];
+
 export function ProviderIcon({
   provider,
   className,
