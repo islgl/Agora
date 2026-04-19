@@ -15,6 +15,7 @@ const EMPTY_GLOBAL_SETTINGS: GlobalSettings = {
   workspaceRoot: '',
   autoApproveReadonly: true,
   hooksJson: '{}',
+  activeModelId: '',
 };
 
 interface SettingsState {
@@ -26,7 +27,7 @@ interface SettingsState {
   addModelConfig: (cfg: Omit<ModelConfig, 'id'>) => Promise<void>;
   updateModelConfig: (cfg: ModelConfig) => Promise<void>;
   deleteModelConfig: (id: string) => Promise<void>;
-  setActiveModel: (id: string) => void;
+  setActiveModel: (id: string) => Promise<void>;
 
   loadGlobalSettings: () => Promise<void>;
   saveGlobalSettings: (settings: GlobalSettings) => Promise<void>;
@@ -113,11 +114,24 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     }));
   },
 
-  setActiveModel: (id) => set({ activeModelId: id }),
+  setActiveModel: async (id) => {
+    // Optimistic in-store update so the UI reacts immediately, then persist
+    // via save_global_settings. If save fails the promise rejects — callers
+    // can surface a toast if they need to.
+    const nextGs = { ...get().globalSettings, activeModelId: id };
+    set({ activeModelId: id, globalSettings: nextGs });
+    await invoke('save_global_settings', { settings: nextGs });
+  },
 
   loadGlobalSettings: async () => {
     const settings = await invoke<GlobalSettings>('load_global_settings');
-    set({ globalSettings: settings });
+    // Hydrate activeModelId from the persisted value only when the store
+    // doesn't already have one (prevents clobbering a just-clicked Use in
+    // a session where globalSettings gets refreshed mid-flight).
+    set((state) => ({
+      globalSettings: settings,
+      activeModelId: state.activeModelId || settings.activeModelId || null,
+    }));
   },
 
   saveGlobalSettings: async (settings) => {

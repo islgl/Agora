@@ -36,6 +36,11 @@ pub struct GlobalSettings {
     /// schema and Rust doesn't need to re-derive it on every settings write.
     #[serde(default = "default_hooks_json")]
     pub hooks_json: String,
+    /// ID of the model selected as "in use" in Settings → Models. Persists
+    /// the user's "Use" click so a restart lands on the same model instead of
+    /// falling back to the first config in the list. Empty = never set.
+    #[serde(default)]
+    pub active_model_id: String,
 }
 
 fn default_true() -> bool {

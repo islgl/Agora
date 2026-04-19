@@ -62,7 +62,8 @@ CREATE TABLE IF NOT EXISTS global_settings (
     auto_approve_readonly  INTEGER NOT NULL DEFAULT 1,
     auto_compact_mode      TEXT NOT NULL DEFAULT 'balanced',
     auto_compact_threshold INTEGER NOT NULL DEFAULT 80,
-    hooks_json             TEXT NOT NULL DEFAULT '{}'
+    hooks_json             TEXT NOT NULL DEFAULT '{}',
+    active_model_id        TEXT NOT NULL DEFAULT ''
 );
 
 INSERT OR IGNORE INTO global_settings (id) VALUES (1);
@@ -171,6 +172,7 @@ const MIGRATIONS: &[&str] = &[
     "ALTER TABLE global_settings ADD COLUMN auto_compact_mode TEXT NOT NULL DEFAULT 'balanced'",
     "ALTER TABLE global_settings ADD COLUMN auto_compact_threshold INTEGER NOT NULL DEFAULT 80",
     "ALTER TABLE global_settings ADD COLUMN hooks_json TEXT NOT NULL DEFAULT '{}'",
+    "ALTER TABLE global_settings ADD COLUMN active_model_id TEXT NOT NULL DEFAULT ''",
 ];
 
 /// One-shot backfills. Keyed by a flag in `meta_flags`; skipped once done.

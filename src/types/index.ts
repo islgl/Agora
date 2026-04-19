@@ -99,6 +99,10 @@ export interface GlobalSettings {
   autoApproveReadonly: boolean;
   /** JSON blob for hook config. See `docs/TOOLS.md`. */
   hooksJson: string;
+  /** ID of the model selected via "Use" in Settings → Models. Empty until
+   *  the user has picked one; loadModelConfigs still falls back to
+   *  configs[0] if this points at a deleted model. */
+  activeModelId: string;
 }
 
 export interface SkillsMeta {

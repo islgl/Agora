@@ -20,8 +20,13 @@ export default function App() {
 
   useEffect(() => {
     loadConversations();
-    loadModelConfigs();
-    loadGlobalSettings();
+    // Global settings first so the persisted activeModelId is in the store
+    // before loadModelConfigs runs its "pick a fallback" logic. If settings
+    // fail to load, still load configs — the configs[0] fallback is better
+    // than no models at all.
+    void loadGlobalSettings()
+      .catch(() => {})
+      .finally(() => loadModelConfigs());
   }, [loadConversations, loadModelConfigs, loadGlobalSettings]);
 
   // Reload AGENT.md whenever the workspace root changes (and once on mount

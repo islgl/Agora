@@ -11,7 +11,7 @@ pub async fn load_global_settings(pool: State<'_, DbPool>) -> Result<GlobalSetti
     sqlx::query_as::<_, GlobalSettings>(
         "SELECT api_key, base_url_openai, base_url_anthropic, base_url_gemini, tavily_api_key, \
                 web_search_enabled, auto_title_mode, thinking_effort, \
-                workspace_root, auto_approve_readonly, hooks_json \
+                workspace_root, auto_approve_readonly, hooks_json, active_model_id \
          FROM global_settings WHERE id = 1",
     )
     .fetch_one(&*pool)
@@ -30,7 +30,7 @@ pub async fn save_global_settings(
          SET api_key = ?, base_url_openai = ?, base_url_anthropic = ?, base_url_gemini = ?, \
              tavily_api_key = ?, web_search_enabled = ?, auto_title_mode = ?, \
              thinking_effort = ?, workspace_root = ?, auto_approve_readonly = ?, \
-             hooks_json = ? \
+             hooks_json = ?, active_model_id = ? \
          WHERE id = 1",
     )
     .bind(&settings.api_key)
@@ -44,6 +44,7 @@ pub async fn save_global_settings(
     .bind(&settings.workspace_root)
     .bind(settings.auto_approve_readonly)
     .bind(&settings.hooks_json)
+    .bind(&settings.active_model_id)
     .execute(&*pool)
     .await
     .map_err(|e| e.to_string())?;
