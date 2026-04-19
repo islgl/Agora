@@ -37,7 +37,15 @@ Agora pairs a clean chat UI with a real agent runtime: MCP servers, skills, buil
 
 Grab the latest `.dmg` from [Releases](https://github.com/islgl/agora/releases) and drag `Agora.app` into `/Applications`.
 
-First launch on macOS: right-click the app → **Open** (Gatekeeper warning is expected for unsigned alphas).
+Because the alpha isn't signed with an Apple Developer ID, macOS may refuse to launch it. Run this once after copying:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/Agora.app
+```
+
+Then double-click normally. The quarantine bit is what macOS adds to everything downloaded from the internet; removing it tells Gatekeeper to trust you on this one.
+
+> Future releases (v0.1.1-alpha+) ship ad-hoc signed, so you'll only need `right-click → Open` once instead of the `xattr` command.
 
 ## Development
 
