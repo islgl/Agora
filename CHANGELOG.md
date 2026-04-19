@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha.1] — 2026-04-19
+
 ### Changed
 
 - **Ad-hoc sign the macOS bundle** (`bundle.macOS.signingIdentity = "-"`) so Gatekeeper no longer rejects the `.dmg` with the misleading "damaged" message. Users on a fresh download only need `right-click → Open` once; the `xattr -dr com.apple.quarantine` workaround is no longer required.
@@ -34,5 +36,6 @@ First public preview. Everything stored locally under `~/.agora/`.
 - No auto-update channel yet — grab new versions from [Releases](https://github.com/islgl/agora/releases).
 - Cross-platform builds (Windows / Linux) are planned once CI is wired up.
 
-[Unreleased]: https://github.com/islgl/agora/compare/v0.1.0-alpha...HEAD
+[Unreleased]: https://github.com/islgl/agora/compare/v0.1.0-alpha.1...HEAD
+[0.1.0-alpha.1]: https://github.com/islgl/agora/compare/v0.1.0-alpha...v0.1.0-alpha.1
 [0.1.0-alpha]: https://github.com/islgl/agora/releases/tag/v0.1.0-alpha

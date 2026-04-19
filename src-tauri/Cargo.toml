@@ -1,6 +1,6 @@
 [package]
 name = "agora"
-version = "0.1.0-alpha"
+version = "0.1.0-alpha.1"
 description = "Agora AI Chatbot"
 authors = []
 edition = "2021"
