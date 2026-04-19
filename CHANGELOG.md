@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Move logo assets to repo-root `assets/`** — `./assets/logo-{light,dark}.png` are now the canonical paths referenced by the README header.
 - **`docs/` is now local-only** — internal design notes, roadmap, and TODO live outside of git (`docs/` is in `.gitignore`). The README no longer advertises a Documentation section.
+- **Auto conversation title options** in Settings → General collapse into a 3-column segmented row (was a vertical stack of wide cards). Full hints moved to the native hover tooltip — saves ~3 lines of vertical space.
+- **API key input never shows plaintext** — `MaskedKeyInput` now uses `type="password"` when focused, so the value is dot-masked live as the user types/pastes instead of revealing the raw string. Blurred state is unchanged (fixed 15-dot preview).
 
 ### Fixed
 
