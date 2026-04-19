@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Queue-chip selector infinite loop** — `QueuedChips` returned a fresh `[]` on every render when the current conversation had no queue, tripping React's "getSnapshot should be cached" guard and white-screening the app on conversation open. Now uses a stable `EMPTY_QUEUE` reference.
 - **Active model persists across restarts** — clicking *Use* in Settings → Models now writes the selected model id into `global_settings.active_model_id` (new column), and startup reads it back before the "pick a fallback" logic runs. Previously, *Use* was in-memory-only and a restart fell back to the first model in the list.
 
 ## [0.1.0-alpha.1] — 2026-04-19

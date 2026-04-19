@@ -2,6 +2,12 @@ import { useAskUserStore } from '@/store/askUserStore';
 import { useChatStore, type QueuedMessage } from '@/store/chatStore';
 import { usePermissionsStore } from '@/store/permissionsStore';
 
+// Stable empty-array reference so the zustand selector below returns the
+// SAME value across renders when the current conversation has no queue.
+// A fresh `[]` literal would change identity each render, triggering
+// React's "getSnapshot result must be cached" infinite-loop guard.
+const EMPTY_QUEUE: readonly QueuedMessage[] = [];
+
 interface QueuedChipsProps {
   conversationId: string;
   isStreaming: boolean;
@@ -22,7 +28,9 @@ export function QueuedChips({
   isStreaming,
   onSend,
 }: QueuedChipsProps) {
-  const queue = useChatStore((s) => s.pendingQueue[conversationId] ?? []);
+  const queue = useChatStore(
+    (s) => s.pendingQueue[conversationId] ?? EMPTY_QUEUE,
+  );
   const cancel = useChatStore((s) => s.cancelQueuedMessage);
   const askUserPending = useAskUserStore((s) => s.currentPrompt !== null);
   const approvalPending = usePermissionsStore((s) => s.currentPrompt !== null);
