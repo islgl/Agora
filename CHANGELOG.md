@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Push-to-main CHANGELOG guard** — `.claude/hooks/require-changelog-on-push.sh` registered as a Claude Code PreToolUse hook via `.claude/settings.json`. Blocks `git push … main` when none of the pending commits touched `CHANGELOG.md`, keeping release notes in lockstep with the tree.
+
 ## [0.1.0-alpha.1] — 2026-04-19
 
 ### Changed

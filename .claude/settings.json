@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/require-changelog-on-push.sh",
+            "timeout": 15,
+            "statusMessage": "Checking CHANGELOG.md before push…"
+          }
+        ]
+      }
+    ]
+  }
+}

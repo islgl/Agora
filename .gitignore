@@ -32,5 +32,5 @@ src-tauri/gen/
 .DS_Store
 **/.DS_Store
 
-# Claude Code
-.claude/
+# Claude Code — commit shared config/hooks, ignore personal overrides
+.claude/settings.local.json
