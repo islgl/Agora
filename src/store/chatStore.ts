@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/core';
+import { v4 as uuidv4 } from 'uuid';
 import type {
   Conversation,
   ConversationMode,
@@ -15,12 +16,27 @@ export interface ActiveStream {
   assistantMessageId: string;
 }
 
+/** A user message typed while a stream was in flight, stashed for later.
+ *  Drains by explicit click on a QueuedChip (see `QueuedChips`) — not
+ *  auto-sent, because "assistant finished its turn" doesn't tell us
+ *  whether the queued text still makes sense (the assistant might have
+ *  ended with an inline clarification question). */
+export interface QueuedMessage {
+  id: string;
+  content: string;
+  files: File[];
+  createdAt: number;
+}
+
 interface ChatState {
   conversations: Conversation[];
   messages: Record<string, Message[]>;
   currentConversationId: string | null;
   /** One in-flight stream per conversation, keyed by conversationId. */
   activeStreams: Record<string, ActiveStream>;
+  /** FIFO queue of user messages typed during a running stream. Lives only
+   *  in memory — files can't survive a reload anyway. */
+  pendingQueue: Record<string, QueuedMessage[]>;
   /** Per-conversation todo list, written by the model via `todo_write` and
    *  read by the Plan UI. `undefined` = not yet hydrated from SQLite;
    *  `[]` = loaded and intentionally empty. */
@@ -97,6 +113,14 @@ interface ChatState {
   setActiveLeaf: (conversationId: string, messageId: string) => Promise<void>;
   setActiveStream: (conversationId: string, stream: ActiveStream | null) => void;
 
+  /** Push a user message onto the conversation's pending queue. Returns the
+   *  new message's id so callers can reference it (e.g., focus the chip). */
+  enqueueMessage: (conversationId: string, content: string, files: File[]) => string;
+  /** Remove a single queued message by id (the chip's ✕). */
+  cancelQueuedMessage: (conversationId: string, id: string) => void;
+  /** Drop the entire queue for a conversation (used on conversation delete). */
+  clearQueue: (conversationId: string) => void;
+
   // Todo actions (Phase B · model-managed plan)
   /** Hydrate todos for a conversation from SQLite. Skips the IPC if already
    *  loaded unless `force` is true. */
@@ -125,6 +149,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
   messages: {},
   currentConversationId: null,
   activeStreams: {},
+  pendingQueue: {},
   todos: {},
   selectionMode: false,
   selectedIds: new Set<string>(),
@@ -141,6 +166,44 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       if (stream) next[conversationId] = stream;
       else delete next[conversationId];
       return { activeStreams: next };
+    });
+  },
+
+  enqueueMessage: (conversationId, content, files) => {
+    const id = uuidv4();
+    set((state) => {
+      const existing = state.pendingQueue[conversationId] ?? [];
+      return {
+        pendingQueue: {
+          ...state.pendingQueue,
+          [conversationId]: [
+            ...existing,
+            { id, content, files, createdAt: Date.now() },
+          ],
+        },
+      };
+    });
+    return id;
+  },
+
+  cancelQueuedMessage: (conversationId, id) => {
+    set((state) => {
+      const existing = state.pendingQueue[conversationId];
+      if (!existing) return state;
+      const filtered = existing.filter((m) => m.id !== id);
+      const next = { ...state.pendingQueue };
+      if (filtered.length > 0) next[conversationId] = filtered;
+      else delete next[conversationId];
+      return { pendingQueue: next };
+    });
+  },
+
+  clearQueue: (conversationId) => {
+    set((state) => {
+      if (!state.pendingQueue[conversationId]) return state;
+      const next = { ...state.pendingQueue };
+      delete next[conversationId];
+      return { pendingQueue: next };
     });
   },
 
@@ -195,13 +258,22 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       delete messages[id];
       const activeStreams = { ...state.activeStreams };
       delete activeStreams[id];
+      const pendingQueue = { ...state.pendingQueue };
+      delete pendingQueue[id];
       const todos = { ...state.todos };
       delete todos[id];
       const currentConversationId =
         state.currentConversationId === id
           ? (conversations[0]?.id ?? null)
           : state.currentConversationId;
-      return { conversations, messages, currentConversationId, activeStreams, todos };
+      return {
+        conversations,
+        messages,
+        currentConversationId,
+        activeStreams,
+        pendingQueue,
+        todos,
+      };
     });
   },
 
@@ -553,10 +625,12 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       const remaining = state.conversations.filter((c) => !state.selectedIds.has(c.id));
       const messages = { ...state.messages };
       const activeStreams = { ...state.activeStreams };
+      const pendingQueue = { ...state.pendingQueue };
       const todos = { ...state.todos };
       for (const id of state.selectedIds) {
         delete messages[id];
         delete activeStreams[id];
+        delete pendingQueue[id];
         delete todos[id];
       }
       const currentConversationId =
@@ -567,6 +641,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
         conversations: remaining,
         messages,
         activeStreams,
+        pendingQueue,
         todos,
         currentConversationId,
         selectionMode: false,

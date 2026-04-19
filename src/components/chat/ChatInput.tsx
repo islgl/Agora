@@ -3,11 +3,16 @@ import { ModelSelector } from '@/components/settings/ModelSelector';
 import { PromptInputBox } from '@/components/ui/ai-prompt-box';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useChatStore } from '@/store/chatStore';
-import type { ConversationMode } from '@/types';
+import { parseSlashMode, SLASH_COMMANDS } from '@/lib/slash';
 import { ModeSelector } from './ModeSelector';
 
 interface ChatInputProps {
   onSend: (content: string, files?: File[]) => void;
+  /** Called when the user submits while a stream is already running. The
+   *  raw text + files are stashed on the conversation's pending queue; the
+   *  text is NOT slash-parsed here — whoever pops the chip later re-parses
+   *  so `/plan do X` correctly applies at pop time, not at queue time. */
+  onEnqueue?: (content: string, files: File[]) => void;
   onStop?: () => void;
   isStreaming?: boolean;
 }
@@ -16,19 +21,12 @@ interface ChatInputProps {
  *  control (low/high) still have the settings panel. */
 const THINKING_ON_EFFORT = 'medium' as const;
 
-const SLASH_MODE: Record<string, ConversationMode> = {
-  '/chat': 'chat',
-  '/plan': 'plan',
-  '/execute': 'execute',
-};
-
-const SLASH_COMMANDS = [
-  { command: '/chat', description: 'Switch to chat mode' },
-  { command: '/plan', description: 'Switch to plan mode (readonly)' },
-  { command: '/execute', description: 'Switch to execute mode (auto-allow writes)' },
-];
-
-export function ChatInput({ onSend, onStop, isStreaming = false }: ChatInputProps) {
+export function ChatInput({
+  onSend,
+  onEnqueue,
+  onStop,
+  isStreaming = false,
+}: ChatInputProps) {
   const { globalSettings, saveGlobalSettings } = useSettingsStore();
 
   const handleThinkingToggle = (next: boolean) => {
@@ -39,16 +37,21 @@ export function ChatInput({ onSend, onStop, isStreaming = false }: ChatInputProp
   };
 
   const handleSend = async (text: string, files: File[]) => {
-    if (isStreaming) return;
     if (!text.trim() && files.length === 0) return;
 
-    const trimmed = text.trim();
-    // Parse `/<cmd>` followed by optional args/prompt. If the first token is
-    // a known mode-switch command, apply the switch first; any remaining
-    // text is forwarded as a normal user message on the new mode.
-    const slashMatch = trimmed.match(/^(\/\S+)(?:\s+([\s\S]+))?$/);
-    const leading = slashMatch ? slashMatch[1].toLowerCase() : null;
-    const mode = leading ? SLASH_MODE[leading] : undefined;
+    // Stream in flight → park the raw payload on the queue and clear the
+    // composer. The QueuedChips row above renders a ➤ button to send each
+    // one once the user has seen the assistant's response.
+    if (isStreaming) {
+      if (onEnqueue) {
+        onEnqueue(text, files);
+        return;
+      }
+      // No queue wired up — fall through to the old "drop silently" behavior.
+      return;
+    }
+
+    const { mode, remainder } = parseSlashMode(text);
     if (mode) {
       const chat = useChatStore.getState();
       const conv = chat.conversations.find(
@@ -58,7 +61,6 @@ export function ChatInput({ onSend, onStop, isStreaming = false }: ChatInputProp
         toast.error('Start a conversation first');
         return;
       }
-      const remainder = slashMatch?.[2]?.trim() ?? '';
       // Await so `useAiSdkChat` below reads the new mode when building
       // the turn's toolset; the store's optimistic update runs synchronously
       // anyway, but awaiting keeps the code robust if that ever changes.
@@ -83,6 +85,11 @@ export function ChatInput({ onSend, onStop, isStreaming = false }: ChatInputProp
           onSend={handleSend}
           onStop={onStop}
           isLoading={isStreaming}
+          // Let the textarea stay editable + Enter still submit while a
+          // stream is running; `handleSend` above re-routes to `onEnqueue`
+          // so submissions land on the pending queue rendered by
+          // <QueuedChips />.
+          allowSubmitWhileLoading={Boolean(onEnqueue)}
           placeholder="Ask anything"
           thinkingEnabled={globalSettings.thinkingEffort !== 'off'}
           onThinkingToggle={handleThinkingToggle}
@@ -95,7 +102,9 @@ export function ChatInput({ onSend, onStop, isStreaming = false }: ChatInputProp
           }
         />
         <p className="text-xs text-muted-foreground text-center mt-2.5">
-          AI can make mistakes. Verify important information.
+          {isStreaming && onEnqueue
+            ? 'Press Enter to queue a follow-up — it stays pending until you click ➤.'
+            : 'AI can make mistakes. Verify important information.'}
         </p>
       </div>
     </div>

@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Type-ahead message queue** — the composer no longer locks during a running stream. Submissions while a response is in flight land on a per-conversation pending queue rendered as chips above the composer. Drain is manual (➤ per chip), so an assistant that ends with an inline clarification question ("do you mean A or B?") can't silently eat a queued follow-up. `/plan`, `/execute`, etc. re-parse at send time, not at queue time. Stream cancel leaves the queue intact; deleting the conversation clears it.
 - **Push-to-main CHANGELOG guard** — `.claude/hooks/require-changelog-on-push.sh` registered as a Claude Code PreToolUse hook via `.claude/settings.json`. Blocks `git push … main` when none of the pending commits touched `CHANGELOG.md`, keeping release notes in lockstep with the tree.
 
 ### Changed

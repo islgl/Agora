@@ -9,8 +9,11 @@ import { ApprovalGate } from './ApprovalGate';
 import { AskUserGate } from './AskUserGate';
 import { SubagentsIndicator } from './SubagentsIndicator';
 import { AgentMdChip } from './AgentMdChip';
+import { QueuedChips } from './QueuedChips';
 import { toast } from 'sonner';
 import { celebrateFirstSendOnce } from '@/lib/celebration';
+import { parseSlashMode } from '@/lib/slash';
+import type { QueuedMessage } from '@/store/chatStore';
 
 export function ChatArea() {
   const {
@@ -23,6 +26,9 @@ export function ChatArea() {
     renameConversation,
     createConversation,
     switchBranch,
+    enqueueMessage,
+    cancelQueuedMessage,
+    setConversationMode,
   } = useChatStore();
 
   const { modelConfigs, activeModelId, resolveModelConfig, globalSettings } =
@@ -169,6 +175,31 @@ export function ChatArea() {
     }
   };
 
+  const handleEnqueue = (content: string, files: File[]) => {
+    // Queueing pre-conversation makes no sense — no stream can be in
+    // flight yet — but guard just in case the welcome-path ever wires
+    // this through.
+    if (!currentConversationId) return;
+    enqueueMessage(currentConversationId, content, files);
+  };
+
+  const handleSendQueued = async (msg: QueuedMessage) => {
+    if (!currentConversationId) return;
+    // Pop the chip before dispatching so a second click (or a re-render
+    // that re-uses a stale reference) can't double-send.
+    cancelQueuedMessage(currentConversationId, msg.id);
+    const { mode, remainder } = parseSlashMode(msg.content);
+    if (mode) {
+      await setConversationMode(currentConversationId, mode);
+      if (!remainder && msg.files.length === 0) {
+        toast.success(`Mode → ${mode}`);
+        return;
+      }
+    }
+    if (!remainder && msg.files.length === 0) return;
+    await handleSend(remainder, msg.files);
+  };
+
   /* ── 无会话欢迎页 ── */
   if (!currentConversationId) {
     return (
@@ -203,7 +234,19 @@ export function ChatArea() {
       <div className="flex justify-end px-4 pt-1" data-chat-print="hide">
         <SubagentsIndicator />
       </div>
-      <ChatInput onSend={handleSend} onStop={cancelCurrent} isStreaming={isStreaming} />
+      {currentConversationId && (
+        <QueuedChips
+          conversationId={currentConversationId}
+          isStreaming={isStreaming}
+          onSend={handleSendQueued}
+        />
+      )}
+      <ChatInput
+        onSend={handleSend}
+        onEnqueue={handleEnqueue}
+        onStop={cancelCurrent}
+        isStreaming={isStreaming}
+      />
     </div>
   );
 }

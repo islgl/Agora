@@ -10,10 +10,10 @@ interface MaskedKeyInputProps {
 }
 
 /**
- * Password-like input that shows a short compact preview (`sk-an•••••ab12`)
- * when the field is blurred and non-empty, instead of the native masked dots
- * which grow with the key length. On focus we swap to a real text input so
- * the user can inspect/edit it without seeing a wall of `•`.
+ * Password-like input. Blurred + non-empty shows a fixed 15-dot preview so
+ * long keys don't stretch the field. Focused swaps to `type="password"` so
+ * the browser masks the live value too — the user can still paste / edit,
+ * just never sees plaintext on screen.
  */
 export function MaskedKeyInput({
   id,
@@ -43,11 +43,7 @@ export function MaskedKeyInput({
   return (
     <Input
       id={id}
-      // Plain text on focus — a `password` input renders one dot per
-      // character, which blows up visually for 50-char API keys. Users
-      // focused the field to inspect/edit, so revealing the value is the
-      // whole point. Blurred state swaps back to the fixed 15-dot preview.
-      type="text"
+      type="password"
       placeholder={placeholder}
       className={className}
       value={value}

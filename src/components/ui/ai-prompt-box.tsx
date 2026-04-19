@@ -393,6 +393,13 @@ export interface PromptInputBoxProps {
   onSend: (text: string, files: File[]) => void;
   onStop?: () => void;
   isLoading?: boolean;
+  /** When true, the textarea stays editable and Enter still submits even
+   *  while `isLoading` is true. The caller is expected to route those
+   *  submissions somewhere sensible (e.g., a pending-message queue) and
+   *  still offer a way to cancel the running stream via the Stop button
+   *  that `isLoading` surfaces. Default: false — classic "locked during
+   *  stream" behavior. */
+  allowSubmitWhileLoading?: boolean;
   placeholder?: string;
   className?: string;
   thinkingEnabled: boolean;
@@ -412,6 +419,7 @@ export const PromptInputBox = React.forwardRef<
     onSend,
     onStop,
     isLoading = false,
+    allowSubmitWhileLoading = false,
     placeholder = 'Ask anything',
     className,
     thinkingEnabled,
@@ -496,7 +504,7 @@ export const PromptInputBox = React.forwardRef<
   const hasContent = input.trim() !== '' || files.length > 0;
 
   const handleSubmit = () => {
-    if (isLoading || !hasContent) return;
+    if ((isLoading && !allowSubmitWhileLoading) || !hasContent) return;
     onSend(input.trim(), files);
     setInput('');
     setFiles([]);
@@ -571,7 +579,7 @@ export const PromptInputBox = React.forwardRef<
         onValueChange={setInput}
         isLoading={isLoading}
         onSubmit={handleSubmit}
-        disabled={isLoading}
+        disabled={isLoading && !allowSubmitWhileLoading}
         maxHeight={expanded ? '60vh' : 180}
         submitKey={expanded ? 'cmd-enter' : 'enter'}
         className={className}

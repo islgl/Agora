@@ -12,12 +12,12 @@ import type { AutoTitleMode, GlobalSettings } from '@/types';
 const AUTO_TITLE_OPTIONS: { value: AutoTitleMode; label: string; hint: string }[] = [
   {
     value: 'every',
-    label: 'Update on every turn',
+    label: 'Every turn',
     hint: 'Refresh the title as the conversation evolves. Costs a small extra call per turn.',
   },
   {
     value: 'first',
-    label: 'Only after first turn',
+    label: 'After first turn',
     hint: 'Summarize once when the first exchange completes. Cheaper and stable.',
   },
   {
@@ -74,7 +74,7 @@ export function GeneralForm() {
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="space-y-2">
         <Label className="text-sm text-muted-foreground">Auto conversation title</Label>
-        <div className="space-y-2">
+        <div className="grid grid-cols-3 gap-2">
           {AUTO_TITLE_OPTIONS.map((opt) => {
             const active = form.autoTitleMode === opt.value;
             return (
@@ -84,10 +84,11 @@ export function GeneralForm() {
                 onClick={() =>
                   setForm((f) => ({ ...f, autoTitleMode: opt.value }))
                 }
-                className={`w-full text-left flex items-start gap-3 p-3 rounded-xl transition-colors ${
+                title={opt.hint}
+                className={`px-3 py-2 rounded-xl text-center text-sm transition-colors ${
                   active
-                    ? 'bg-primary/5'
-                    : 'bg-card hover:bg-accent/40'
+                    ? 'bg-primary/5 text-primary'
+                    : 'bg-card hover:bg-accent/40 text-foreground'
                 }`}
                 style={{
                   boxShadow: active
@@ -95,32 +96,13 @@ export function GeneralForm() {
                     : '0 0 0 1px var(--border)',
                 }}
               >
-                <span
-                  className={`mt-0.5 size-3.5 shrink-0 rounded-full ${
-                    active ? 'bg-primary' : 'bg-transparent'
-                  }`}
-                  style={{
-                    boxShadow: active
-                      ? '0 0 0 1px var(--primary)'
-                      : '0 0 0 1px var(--border)',
-                  }}
-                />
-                <div className="space-y-0.5 min-w-0">
-                  <div
-                    className={`text-sm ${
-                      active ? 'text-primary' : 'text-foreground'
-                    }`}
-                  >
-                    {opt.label}
-                  </div>
-                  <div className="text-xs text-muted-foreground">{opt.hint}</div>
-                </div>
+                {opt.label}
               </button>
             );
           })}
         </div>
         <p className="text-[11px] text-muted-foreground">
-          If you rename a conversation yourself, auto-title stops touching it.
+          Hover an option for details. If you rename a conversation yourself, auto-title stops touching it.
         </p>
       </div>
 
