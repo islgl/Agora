@@ -22,6 +22,20 @@ pub struct GlobalSettings {
     /// without the parameter.
     #[serde(default = "default_thinking_effort")]
     pub thinking_effort: String,
+    /// Absolute path the agent's FS/Bash tools resolve relative paths against.
+    /// Empty = no workspace configured; relative paths from the model will
+    /// error out until the user sets one in Settings.
+    #[serde(default)]
+    pub workspace_root: String,
+    /// When true, read-only built-ins (`read_file`, `glob`, `grep`,
+    /// `read_task_output`) skip the approval prompt.
+    #[serde(default = "default_true")]
+    pub auto_approve_readonly: bool,
+    /// JSON blob of hook config. Structure: `{ preToolUse?: [...],
+    /// postToolUse?: [...] }`. Kept as a string so the frontend owns the
+    /// schema and Rust doesn't need to re-derive it on every settings write.
+    #[serde(default = "default_hooks_json")]
+    pub hooks_json: String,
 }
 
 fn default_true() -> bool {
@@ -34,4 +48,8 @@ fn default_auto_title_mode() -> String {
 
 fn default_thinking_effort() -> String {
     "off".to_string()
+}
+
+fn default_hooks_json() -> String {
+    "{}".to_string()
 }

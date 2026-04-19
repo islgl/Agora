@@ -10,7 +10,8 @@
 //! API keys are injected by matching the outbound URL against the configured
 //! provider base URLs in `global_settings`. Plaintext keys never reach JS.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::sync::{LazyLock, Mutex};
 
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
@@ -21,6 +22,26 @@ use tauri::State;
 use crate::db::DbPool;
 
 const ANTHROPIC_VERSION: &str = "2023-06-01";
+
+/// Endpoints we've already seen reject `thinking.type.enabled` with the
+/// Bedrock "use adaptive" 400. Keyed by request URL; once an endpoint is
+/// in this set we rewrite the body pre-emptively on every subsequent
+/// request, skipping the 400 + retry round-trip. Cleared on app restart.
+static ADAPTIVE_THINKING_HOSTS: LazyLock<Mutex<HashSet<String>>> =
+    LazyLock::new(|| Mutex::new(HashSet::new()));
+
+fn endpoint_needs_adaptive(url: &str) -> bool {
+    ADAPTIVE_THINKING_HOSTS
+        .lock()
+        .map(|s| s.contains(url))
+        .unwrap_or(false)
+}
+
+fn mark_endpoint_adaptive(url: &str) {
+    if let Ok(mut s) = ADAPTIVE_THINKING_HOSTS.lock() {
+        s.insert(url.to_string());
+    }
+}
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -119,7 +140,17 @@ pub async fn proxy_ai_request(
 
     let _ = api_key; // silenced: key usage lives in provider_headers above
 
-    let mut response = match build_request(body_bytes.clone()).send().await {
+    // If we've already learned this endpoint requires adaptive thinking,
+    // rewrite the body pre-emptively instead of eating a 400 + retry.
+    let initial_body = if request.url.contains("/v1/messages")
+        && endpoint_needs_adaptive(&request.url)
+    {
+        rewrite_thinking_adaptive(&body_bytes).unwrap_or_else(|| body_bytes.clone())
+    } else {
+        body_bytes.clone()
+    };
+
+    let mut response = match build_request(initial_body).send().await {
         Ok(r) => r,
         Err(e) => {
             let _ = on_event.send(ProxyEvent::Error {
@@ -137,12 +168,29 @@ pub async fn proxy_ai_request(
     if response.status().is_client_error() && request.url.contains("/v1/messages") {
         let status = response.status();
         let err_body = response.text().await.unwrap_or_default();
-        if err_body.contains("adaptive") {
+        // Always log the upstream error so we can tell adaptive-required
+        // 400s apart from everything else — the earlier heuristic of
+        // "body contains the substring 'adaptive'" false-positive'd on
+        // any unrelated 400 that happened to mention it in an error
+        // message or hint text, silently swallowing the real reason.
+        eprintln!(
+            "[agora] proxy: upstream 4xx on /v1/messages ({}): {}",
+            status, err_body
+        );
+        // Narrow the heuristic: require *both* "thinking" and "adaptive"
+        // to appear, which matches the Bedrock Anthropic-compat error
+        // ("thinking type ... adaptive ...") while ruling out unrelated
+        // 400s that just happen to contain one word.
+        let looks_like_bedrock_thinking =
+            err_body.contains("adaptive") && err_body.contains("thinking");
+        if looks_like_bedrock_thinking {
             if let Some(rewritten) = rewrite_thinking_adaptive(&body_bytes) {
                 eprintln!(
                     "[agora] proxy: retrying Anthropic request with adaptive thinking (status was {})",
                     status
                 );
+                // Remember this endpoint so future requests skip the 400.
+                mark_endpoint_adaptive(&request.url);
                 response = match build_request(rewritten).send().await {
                     Ok(r) => r,
                     Err(e) => {

@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown } from 'lucide-react';
 import { MessageBubble } from './MessageBubble';
 import { StreamingIndicator } from './StreamingIndicator';
 import { ChatWelcome } from './ChatWelcome';
-import type { Message } from '@/types';
+import { ConversationTodos } from './ConversationTodos';
+import type { Message, MessagePart } from '@/types';
 
 interface MessageListProps {
   messages: Message[];
@@ -43,6 +44,20 @@ export function MessageList({
     setAtBottom(distance < STUCK_TO_BOTTOM_PX);
   };
 
+  // When the assistant calls `ask_user` and the user picks an answer, we
+  // append a transient user-role bubble. Appending at the end of the
+  // array is correct, but the assistant message itself keeps streaming
+  // its response into its own parts array — so visually the assistant's
+  // post-ask_user text ends up inside the same bubble, with the
+  // transient stranded at the bottom. To get the Claude-Desktop flow
+  // (question → user pick → answer), we split the assistant bubble at
+  // each `ask_user` tool_result boundary and slot the transient between
+  // the halves.
+  const renderUnits = useMemo(
+    () => buildRenderUnits(messages),
+    [messages],
+  );
+
   // Auto-follow new / updated messages only when the user is already at the
   // bottom. Don't fire on `atBottom` transitions — that made the wheel fight
   // a smooth scrollIntoView whenever the user drifted into the sticky zone.
@@ -75,10 +90,13 @@ export function MessageList({
           className="max-w-3xl mx-auto px-4 pb-6"
           style={{ paddingTop: FADE_PX }}
         >
-          {messages.map((msg) => (
+          {messages[0]?.conversationId && (
+            <ConversationTodos conversationId={messages[0].conversationId} />
+          )}
+          {renderUnits.map((unit) => (
             <MessageBubble
-              key={msg.id}
-              message={msg}
+              key={unit.key}
+              message={unit.message}
               isStreaming={isStreaming}
               onEdit={onEdit}
               onRegenerate={onRegenerate}
@@ -108,4 +126,88 @@ export function MessageList({
       )}
     </div>
   );
+}
+
+interface RenderUnit {
+  key: string;
+  message: Message;
+}
+
+/**
+ * Collapse the stored message list into a render plan:
+ * - Normal messages pass through as one unit each.
+ * - An assistant message whose parts contain one or more `ask_user`
+ *   tool_result pairs, followed in the array by matching transient user
+ *   bubbles, is split into N+1 slices at the tool_result boundaries.
+ *   Each transient is slotted between the corresponding slices. A
+ *   unique `key` suffix keeps React's reconciliation happy across the
+ *   synthetic sub-bubbles.
+ */
+function buildRenderUnits(messages: Message[]): RenderUnit[] {
+  // Map each assistant message id → the transient user bubbles that
+  // followed it in the array, in order.
+  const transientsByAssistant = new Map<string, Message[]>();
+  let lastAssistantId: string | null = null;
+  for (const m of messages) {
+    if (m.role === 'assistant' && !m.transient) {
+      lastAssistantId = m.id;
+    } else if (m.transient && m.role === 'user' && lastAssistantId) {
+      const arr = transientsByAssistant.get(lastAssistantId) ?? [];
+      arr.push(m);
+      transientsByAssistant.set(lastAssistantId, arr);
+    }
+  }
+
+  const out: RenderUnit[] = [];
+  for (const m of messages) {
+    if (m.transient) continue; // placed by the assistant branch below
+    if (m.role !== 'assistant' || !transientsByAssistant.has(m.id)) {
+      out.push({ key: m.id, message: m });
+      continue;
+    }
+    const transients = transientsByAssistant.get(m.id)!;
+    const parts = m.parts ?? [];
+    const askUserCallIds = new Set(
+      parts
+        .filter(
+          (p): p is Extract<MessagePart, { type: 'tool_call' }> =>
+            p.type === 'tool_call' && p.name === 'ask_user',
+        )
+        .map((p) => p.id),
+    );
+
+    let slice: MessagePart[] = [];
+    let sliceIndex = 0;
+    let transientIndex = 0;
+    const flushSlice = () => {
+      if (slice.length === 0) return;
+      out.push({
+        key: `${m.id}::s${sliceIndex}`,
+        message: { ...m, parts: slice },
+      });
+      slice = [];
+      sliceIndex++;
+    };
+
+    for (const p of parts) {
+      slice.push(p);
+      if (p.type === 'tool_result' && askUserCallIds.has(p.call_id)) {
+        flushSlice();
+        const t = transients[transientIndex];
+        if (t) {
+          out.push({ key: t.id, message: t });
+          transientIndex++;
+        }
+      }
+    }
+    flushSlice();
+    // Any orphan transients (more picks than boundaries we hit) land at end.
+    for (; transientIndex < transients.length; transientIndex++) {
+      out.push({
+        key: transients[transientIndex].id,
+        message: transients[transientIndex],
+      });
+    }
+  }
+  return out;
 }

@@ -11,4 +11,12 @@ pub struct Conversation {
     pub pinned: bool,
     #[serde(default)]
     pub title_locked: bool,
+    /// Agent operating mode. "chat" (default) | "plan" (readonly) |
+    /// "execute" (writes auto-allowed session-wide). Phase C.
+    #[serde(default = "default_mode")]
+    pub mode: String,
+}
+
+fn default_mode() -> String {
+    "chat".to_string()
 }

@@ -7,6 +7,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import type { MessagePart } from '@/types';
+import { DiffView } from './DiffView';
 
 type ToolCall = Extract<MessagePart, { type: 'tool_call' }>;
 type ToolResult = Extract<MessagePart, { type: 'tool_result' }>;
@@ -106,11 +107,14 @@ export function ToolCallBlock({
       </button>
       {open && (
         <div className="px-3 pb-3 space-y-2 text-xs">
-          <Panel
-            label="Input"
-            streaming={state === 'streaming'}
-            body={inputDisplay}
-          />
+          <EditFileDiffPanel call={call} />
+          {!isEditFileWithDiff(call) && (
+            <Panel
+              label="Input"
+              streaming={state === 'streaming'}
+              body={inputDisplay}
+            />
+          )}
           {result && (
             <Panel
               label={state === 'error' ? 'Error' : 'Result'}
@@ -164,4 +168,46 @@ function tryStringify(v: unknown): string {
   } catch {
     return String(v);
   }
+}
+
+function isEditFileWithDiff(call: ToolCall): boolean {
+  if (call.name !== 'edit_file') return false;
+  const input = call.input as Record<string, unknown> | null;
+  if (!input) return false;
+  return (
+    typeof input.old_string === 'string' && typeof input.new_string === 'string'
+  );
+}
+
+/**
+ * Render an `edit_file` call as a mini unified diff of old_string → new_string.
+ * Falls back to nothing when the model hasn't finished streaming the input
+ * (the generic Input panel covers that case).
+ */
+function EditFileDiffPanel({ call }: { call: ToolCall }) {
+  if (!isEditFileWithDiff(call)) return null;
+  const input = call.input as {
+    path?: string;
+    old_string: string;
+    new_string: string;
+    replace_all?: boolean;
+  };
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+        <span>Diff</span>
+        {input.path && (
+          <span className="font-mono text-foreground/80 truncate">
+            {input.path}
+          </span>
+        )}
+        {input.replace_all && (
+          <span className="text-[10px] px-1 py-0 rounded bg-secondary text-secondary-foreground">
+            replace_all
+          </span>
+        )}
+      </div>
+      <DiffView oldText={input.old_string} newText={input.new_string} />
+    </div>
+  );
 }

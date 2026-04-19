@@ -7,7 +7,7 @@ use crate::models::Conversation;
 #[tauri::command]
 pub async fn load_conversations(pool: State<'_, DbPool>) -> Result<Vec<Conversation>, String> {
     sqlx::query_as::<_, Conversation>(
-        "SELECT id, title, created_at, model_id, pinned, title_locked \
+        "SELECT id, title, created_at, model_id, pinned, title_locked, mode \
          FROM conversations \
          ORDER BY pinned DESC, created_at DESC",
     )
@@ -29,11 +29,12 @@ pub async fn create_conversation(
         model_id,
         pinned: false,
         title_locked: false,
+        mode: "chat".into(),
     };
 
     sqlx::query(
-        "INSERT INTO conversations (id, title, created_at, model_id, pinned, title_locked) \
-         VALUES (?, ?, ?, ?, 0, 0)",
+        "INSERT INTO conversations (id, title, created_at, model_id, pinned, title_locked, mode) \
+         VALUES (?, ?, ?, ?, 0, 0, 'chat')",
     )
     .bind(&conversation.id)
     .bind(&conversation.title)
@@ -44,6 +45,27 @@ pub async fn create_conversation(
     .map_err(|e| e.to_string())?;
 
     Ok(conversation)
+}
+
+/// Flip the conversation between `chat` / `plan` / `execute`. The frontend
+/// derives tool visibility + auto-approval from this flag, so enforcement
+/// still lives over there — this is purely persistence.
+#[tauri::command]
+pub async fn set_conversation_mode(
+    pool: State<'_, DbPool>,
+    id: String,
+    mode: String,
+) -> Result<(), String> {
+    if !matches!(mode.as_str(), "chat" | "plan" | "execute") {
+        return Err(format!("invalid mode `{}`", mode));
+    }
+    sqlx::query("UPDATE conversations SET mode = ? WHERE id = ?")
+        .bind(&mode)
+        .bind(&id)
+        .execute(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 #[tauri::command]

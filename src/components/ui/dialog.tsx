@@ -28,6 +28,12 @@ function DialogOverlay({
   return (
     <DialogPrimitive.Backdrop
       data-slot="dialog-overlay"
+      // Let the OS move the window when the user grabs the dimmed area —
+      // the app's drag strips on the sidebar / title row are covered by
+      // this backdrop, so without this the window is stuck while a modal
+      // is open. Short clicks still dismiss the dialog per base-ui's
+      // outside-press handling.
+      data-tauri-drag-region
       className={cn(
         "fixed inset-0 isolate z-50 bg-black/10 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
         className

@@ -10,6 +10,7 @@ import {
   CodeBlockGroup,
 } from '@/components/ui/code-block';
 import { MermaidBlock } from './MermaidBlock';
+import { AgentPlanBlock } from './AgentPlanBlock';
 import { cn } from '@/lib/utils';
 
 interface MarkdownRendererProps {
@@ -48,6 +49,10 @@ function MarkdownCode({ className, children, ...rest }: CodeProps) {
   // block reserves its own card chrome, so no CodeBlock wrapper.
   if (language === 'mermaid') {
     return <MermaidBlock code={raw} />;
+  }
+
+  if (language === 'agent-plan') {
+    return <AgentPlanBlock code={raw} />;
   }
 
   return (

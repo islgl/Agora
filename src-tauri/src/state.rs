@@ -1,5 +1,6 @@
 use std::sync::Mutex;
 
+use crate::builtins::SharedBuiltinsRuntime;
 use crate::mcp::SharedMcpManager;
 use crate::skills::SharedSkillRegistry;
 
@@ -18,4 +19,5 @@ pub type AppState = Mutex<AppStateInner>;
 pub struct RuntimeHandles {
     pub mcp: SharedMcpManager,
     pub skills: SharedSkillRegistry,
+    pub builtins: SharedBuiltinsRuntime,
 }

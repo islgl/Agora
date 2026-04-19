@@ -6,7 +6,6 @@ import {
   Paperclip,
   Square,
   X,
-  Globe,
   BrainCog,
   Maximize2,
   Minimize2,
@@ -221,7 +220,7 @@ const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(
         <div
           ref={ref}
           className={cn(
-            'rounded-2xl border bg-card p-2 transition-colors',
+            'relative rounded-2xl border bg-card p-2 transition-colors',
             isLoading ? 'border-primary/60' : 'border-border',
             className,
           )}
@@ -241,12 +240,17 @@ PromptInput.displayName = 'PromptInput';
 interface PromptInputTextareaProps
   extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   disableAutosize?: boolean;
+  /** Known slash commands to highlight. Only exact matches (the leading
+   *  `/<token>` before any whitespace must equal one of these) render the
+   *  overlay; partial typings like `/pl` stay unstyled. */
+  knownSlashCommands?: string[];
 }
 const PromptInputTextarea: React.FC<PromptInputTextareaProps> = ({
   className,
   onKeyDown,
   disableAutosize = false,
   placeholder,
+  knownSlashCommands,
   ...props
 }) => {
   const { value, setValue, maxHeight, onSubmit, disabled, submitKey } =
@@ -269,6 +273,11 @@ const PromptInputTextarea: React.FC<PromptInputTextareaProps> = ({
       onKeyDown?.(e);
       return;
     }
+    // Let the caller intercept first — e.g. a slash-command menu that
+    // needs to steal Enter/Arrow/Escape before the default submit logic
+    // fires. If they `preventDefault`, we bail out of the built-in flow.
+    onKeyDown?.(e);
+    if (e.defaultPrevented) return;
     if (e.key === 'Enter') {
       const isCmd = e.metaKey || e.ctrlKey;
       const shouldSubmit =
@@ -280,20 +289,72 @@ const PromptInputTextarea: React.FC<PromptInputTextareaProps> = ({
       // Otherwise let the browser insert the newline (plain Enter in
       // cmd-enter mode, or Shift+Enter in enter mode).
     }
-    onKeyDown?.(e);
+  };
+
+  // Highlight a leading `/command` chunk *only when it exactly matches* a
+  // known slash command followed by a whitespace boundary (or end of
+  // string). Partial typings like `/pl` stay unstyled. The highlight is
+  // rendered via an absolutely-positioned overlay above a transparent-text
+  // textarea; the caret stays visible via `caret-color`.
+  //
+  // The overlay's span must introduce zero extra horizontal space — any
+  // padding / bold weight / different font would shift the following text
+  // relative to the textarea's caret. So we use color + background only,
+  // no padding, no weight change.
+  const slashPrefix = (() => {
+    if (!knownSlashCommands || knownSlashCommands.length === 0) return null;
+    const m = value.match(/^\/\S+/);
+    if (!m) return null;
+    const token = m[0];
+    if (!knownSlashCommands.includes(token)) return null;
+    // Must be followed by whitespace or end-of-string — otherwise it's
+    // `/chatZZZ`, not a real command.
+    const next = value.charAt(token.length);
+    if (next !== '' && !/\s/.test(next)) return null;
+    return token;
+  })();
+  const rest = slashPrefix ? value.slice(slashPrefix.length) : '';
+  const overlayRef = React.useRef<HTMLDivElement>(null);
+
+  const handleScroll = () => {
+    if (overlayRef.current && ref.current) {
+      overlayRef.current.scrollTop = ref.current.scrollTop;
+    }
   };
 
   return (
-    <Textarea
-      ref={ref}
-      value={value}
-      onChange={(e) => setValue(e.target.value)}
-      onKeyDown={handleKeyDown}
-      className={cn(className)}
-      disabled={disabled}
-      placeholder={placeholder}
-      {...props}
-    />
+    <div className="relative">
+      {slashPrefix && (
+        <div
+          ref={overlayRef}
+          aria-hidden
+          className="absolute inset-0 px-3 py-2.5 text-sm leading-relaxed whitespace-pre-wrap break-words pointer-events-none overflow-hidden"
+          style={{ fontFamily: 'inherit' }}
+        >
+          <span
+            style={{
+              color: 'var(--primary)',
+              background: 'color-mix(in oklab, var(--primary) 12%, transparent)',
+            }}
+          >
+            {slashPrefix}
+          </span>
+          <span className="text-foreground">{rest}</span>
+        </div>
+      )}
+      <Textarea
+        ref={ref}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={handleKeyDown}
+        onScroll={handleScroll}
+        className={cn(className, slashPrefix && 'text-transparent')}
+        style={slashPrefix ? { caretColor: 'var(--foreground)' } : undefined}
+        disabled={disabled}
+        placeholder={placeholder}
+        {...props}
+      />
+    </div>
   );
 };
 
@@ -323,18 +384,24 @@ const PromptInputAction: React.FC<PromptInputActionProps> = ({
 
 /* ─── Public: PromptInputBox ────────────────────────────── */
 
+export interface SlashCommand {
+  command: string;
+  description?: string;
+}
+
 export interface PromptInputBoxProps {
   onSend: (text: string, files: File[]) => void;
   onStop?: () => void;
   isLoading?: boolean;
   placeholder?: string;
   className?: string;
-  searchEnabled: boolean;
-  onSearchToggle: (v: boolean) => void;
   thinkingEnabled: boolean;
   onThinkingToggle: (v: boolean) => void;
   /** Slot rendered at the bottom-left, inline with the toggles. Used for ModelSelector. */
   bottomStartSlot?: React.ReactNode;
+  /** When provided and the user starts typing `/`, surface a filter-as-you-type
+   *  menu above the textarea. Picking an item replaces the input and submits. */
+  slashCommands?: SlashCommand[];
 }
 
 export const PromptInputBox = React.forwardRef<
@@ -347,11 +414,10 @@ export const PromptInputBox = React.forwardRef<
     isLoading = false,
     placeholder = 'Ask anything',
     className,
-    searchEnabled,
-    onSearchToggle,
     thinkingEnabled,
     onThinkingToggle,
     bottomStartSlot,
+    slashCommands,
   },
   ref,
 ) {
@@ -360,6 +426,7 @@ export const PromptInputBox = React.forwardRef<
   const [previews, setPreviews] = React.useState<Record<string, string>>({});
   const [selectedImage, setSelectedImage] = React.useState<string | null>(null);
   const [expanded, setExpanded] = React.useState(false);
+  const [slashIndex, setSlashIndex] = React.useState(0);
   const uploadRef = React.useRef<HTMLInputElement>(null);
 
   const isImage = (f: File) => f.type.startsWith('image/');
@@ -436,6 +503,67 @@ export const PromptInputBox = React.forwardRef<
     setPreviews({});
   };
 
+  // Slash-command completion. Active while the input is a single-line
+  // slash prefix with no whitespace — as soon as the user types a space
+  // the menu closes and the text is treated as a normal message.
+  const slashMatches = React.useMemo<SlashCommand[]>(() => {
+    if (!slashCommands || slashCommands.length === 0) return [];
+    if (!input.startsWith('/')) return [];
+    if (/\s/.test(input)) return [];
+    const prefix = input.toLowerCase();
+    return slashCommands.filter((s) =>
+      s.command.toLowerCase().startsWith(prefix),
+    );
+  }, [slashCommands, input]);
+  const slashMenuOpen = slashMatches.length > 0;
+
+  // Clamp the highlight when the match list shrinks (e.g. user added a
+  // character that filters the list down).
+  React.useEffect(() => {
+    if (!slashMenuOpen) {
+      if (slashIndex !== 0) setSlashIndex(0);
+      return;
+    }
+    if (slashIndex >= slashMatches.length) setSlashIndex(0);
+  }, [slashMenuOpen, slashMatches.length, slashIndex]);
+
+  const pickSlashCommand = (cmd: string) => {
+    // Insert `<cmd> ` into the box and close the menu. We don't
+    // auto-submit — some future commands may take arguments
+    // (e.g. `/prompt <text>`), so the user still needs one Enter to fire
+    // after picking. Argument-less commands are a single extra keystroke.
+    setInput(cmd + ' ');
+  };
+
+  const handleTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Cmd/Ctrl + Shift + E toggles the expanded editing mode.
+    if (
+      (e.metaKey || e.ctrlKey) &&
+      e.shiftKey &&
+      e.key.toLowerCase() === 'e'
+    ) {
+      e.preventDefault();
+      setExpanded((v) => !v);
+      return;
+    }
+    if (!slashMenuOpen) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSlashIndex((i) => (i + 1) % slashMatches.length);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSlashIndex((i) => (i - 1 + slashMatches.length) % slashMatches.length);
+    } else if (e.key === 'Enter' || e.key === 'Tab') {
+      const target = slashMatches[slashIndex];
+      if (!target) return;
+      e.preventDefault();
+      pickSlashCommand(target.command);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      setInput('');
+    }
+  };
+
   return (
     <>
       <PromptInput
@@ -452,6 +580,41 @@ export const PromptInputBox = React.forwardRef<
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
+        {slashMenuOpen && (
+          <div
+            className="absolute left-0 right-0 bottom-full mb-2 rounded-xl bg-popover py-1 text-sm shadow-md"
+            style={{ boxShadow: '0 0 0 1px var(--border), 0 8px 24px rgba(0,0,0,0.08)' }}
+            role="listbox"
+          >
+            {slashMatches.map((cmd, i) => (
+              <button
+                key={cmd.command}
+                type="button"
+                role="option"
+                aria-selected={i === slashIndex}
+                onMouseDown={(e) => {
+                  // prevent textarea blur before the click lands
+                  e.preventDefault();
+                }}
+                onMouseEnter={() => setSlashIndex(i)}
+                onClick={() => pickSlashCommand(cmd.command)}
+                className={cn(
+                  'flex w-full items-center justify-between gap-3 px-3 py-1.5 text-left',
+                  i === slashIndex
+                    ? 'bg-accent text-accent-foreground'
+                    : 'text-foreground hover:bg-accent/50',
+                )}
+              >
+                <span className="font-mono text-xs">{cmd.command}</span>
+                {cmd.description && (
+                  <span className="truncate text-xs text-muted-foreground">
+                    {cmd.description}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
         {files.length > 0 && (
           <div className="flex flex-wrap gap-2 px-1 pb-2">
             {files.map((file, index) =>
@@ -488,17 +651,8 @@ export const PromptInputBox = React.forwardRef<
         <PromptInputTextarea
           placeholder={expanded ? EXPANDED_PLACEHOLDER : placeholder}
           className={expanded ? 'min-h-[30vh]' : undefined}
-          onKeyDown={(e) => {
-            // Cmd/Ctrl + Shift + E toggles the expanded editing mode.
-            if (
-              (e.metaKey || e.ctrlKey) &&
-              e.shiftKey &&
-              e.key.toLowerCase() === 'e'
-            ) {
-              e.preventDefault();
-              setExpanded((v) => !v);
-            }
-          }}
+          onKeyDown={handleTextareaKeyDown}
+          knownSlashCommands={slashCommands?.map((c) => c.command)}
         />
 
         <div className="flex items-center justify-between gap-2 pt-2">
@@ -543,13 +697,6 @@ export const PromptInputBox = React.forwardRef<
               </button>
             </PromptInputAction>
 
-            <ToggleButton
-              active={searchEnabled}
-              onClick={() => onSearchToggle(!searchEnabled)}
-              icon={<Globe className="h-3.5 w-3.5" />}
-              label="Search"
-              tooltip={searchEnabled ? 'Web search on' : 'Enable web search'}
-            />
             <ToggleButton
               active={thinkingEnabled}
               onClick={() => onThinkingToggle(!thinkingEnabled)}

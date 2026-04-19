@@ -7,12 +7,15 @@ import { ChatArea } from '@/components/chat/ChatArea';
 import { PrintOverlay } from '@/components/chat/PrintOverlay';
 import { useChatStore } from '@/store/chatStore';
 import { useSettingsStore } from '@/store/settingsStore';
+import { useAgentMdStore } from '@/store/agentMdStore';
 
 const SIDEBAR_OFFSET_REM = 16; // 15rem card + 1rem padding
 
 export default function App() {
   const { loadConversations, startNewConversation } = useChatStore();
-  const { loadModelConfigs, loadGlobalSettings, activeModelId } = useSettingsStore();
+  const { loadModelConfigs, loadGlobalSettings, activeModelId, globalSettings } =
+    useSettingsStore();
+  const refreshAgentMd = useAgentMdStore((s) => s.refresh);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   useEffect(() => {
@@ -20,6 +23,13 @@ export default function App() {
     loadModelConfigs();
     loadGlobalSettings();
   }, [loadConversations, loadModelConfigs, loadGlobalSettings]);
+
+  // Reload AGENT.md whenever the workspace root changes (and once on mount
+  // after settings hydrate). The Rust command tolerates missing file /
+  // unset workspace, so firing on empty string is a no-op.
+  useEffect(() => {
+    void refreshAgentMd();
+  }, [globalSettings.workspaceRoot, refreshAgentMd]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -48,6 +58,19 @@ export default function App() {
         </main>
 
         <AppSidebar open={sidebarOpen} onOpenChange={setSidebarOpen} />
+
+        {/* Drag strip across the top of the chat area so the frameless
+            window stays movable anywhere above the messages. When the
+            sidebar is closed, WindowControls already supplies a full-width
+            strip, so this one only renders when the sidebar owns the left. */}
+        {sidebarOpen && (
+          <div
+            data-tauri-drag-region
+            data-chat-print="hide"
+            className="fixed top-0 right-0 h-11 z-30 pointer-events-auto"
+            style={{ left: `${SIDEBAR_OFFSET_REM}rem` }}
+          />
+        )}
 
         {!sidebarOpen && <WindowControls onOpenSidebar={() => setSidebarOpen(true)} />}
 

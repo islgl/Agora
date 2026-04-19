@@ -1,3 +1,4 @@
+mod builtins;
 mod commands;
 mod db;
 mod mcp;
@@ -33,6 +34,7 @@ pub fn run() {
 
             let mcp_manager = mcp::McpManager::new();
             let skill_registry = skills::SkillRegistry::new();
+            let builtins_runtime = builtins::BuiltinsRuntime::new();
 
             // Best-effort startup: connect any enabled MCP servers and load
             // skills from ~/.agora/skills. Both tolerate failure silently so a
@@ -44,6 +46,7 @@ pub fn run() {
                 let pool_for_init = pool.clone();
                 let mcp_for_init = mcp_manager.clone();
                 let skills_for_init = skill_registry.clone();
+                let builtins_for_init = builtins_runtime.clone();
                 let skills_dir_str = skills_dir.to_string_lossy().into_owned();
                 tauri::async_runtime::spawn(async move {
                     if let Ok(rows) = sqlx::query_as::<_, commands::mcp::McpServerRow>(
@@ -67,6 +70,21 @@ pub fn run() {
                     let _ = skills_for_init
                         .load_from(&skills_dir_str, scripts_enabled)
                         .await;
+
+                    // Prime the built-ins runtime with the persisted workspace
+                    // root so FS/Bash tools have scope from the first call.
+                    let ws: String = sqlx::query_scalar(
+                        "SELECT workspace_root FROM global_settings WHERE id = 1",
+                    )
+                    .fetch_one(&pool_for_init)
+                    .await
+                    .unwrap_or_default();
+                    let ws_trimmed = ws.trim();
+                    if !ws_trimmed.is_empty() {
+                        builtins_for_init
+                            .set_workspace_root(Some(std::path::PathBuf::from(ws_trimmed)))
+                            .await;
+                    }
                 });
             }
 
@@ -75,6 +93,7 @@ pub fn run() {
             app.manage(state::RuntimeHandles {
                 mcp: mcp_manager,
                 skills: skill_registry,
+                builtins: builtins_runtime,
             });
             Ok(())
         })
@@ -85,6 +104,7 @@ pub fn run() {
             conversations::rename_conversation,
             conversations::update_conversation_title_auto,
             conversations::set_conversation_pinned,
+            conversations::set_conversation_mode,
             messages::load_messages,
             messages::save_message,
             branches::set_active_leaf,
@@ -103,6 +123,14 @@ pub fn run() {
             commands::ai_proxy::proxy_ai_request,
             commands::tool_bridge::list_frontend_tools,
             commands::tool_bridge::invoke_tool,
+            commands::permissions::list_permissions,
+            commands::permissions::save_permission,
+            commands::permissions::delete_permission,
+            commands::permissions::check_permission,
+            commands::todos::get_todos,
+            commands::todos::save_todos,
+            commands::agent_md::read_agent_md,
+            commands::hooks::run_hooks,
             mcp_cmds::load_mcp_servers,
             mcp_cmds::save_mcp_server,
             mcp_cmds::delete_mcp_server,

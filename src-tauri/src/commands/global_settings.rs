@@ -1,13 +1,17 @@
+use std::path::PathBuf;
+
 use tauri::State;
 
 use crate::db::DbPool;
 use crate::models::GlobalSettings;
+use crate::state::RuntimeHandles;
 
 #[tauri::command]
 pub async fn load_global_settings(pool: State<'_, DbPool>) -> Result<GlobalSettings, String> {
     sqlx::query_as::<_, GlobalSettings>(
         "SELECT api_key, base_url_openai, base_url_anthropic, base_url_gemini, tavily_api_key, \
-                web_search_enabled, auto_title_mode, thinking_effort \
+                web_search_enabled, auto_title_mode, thinking_effort, \
+                workspace_root, auto_approve_readonly, hooks_json \
          FROM global_settings WHERE id = 1",
     )
     .fetch_one(&*pool)
@@ -18,13 +22,15 @@ pub async fn load_global_settings(pool: State<'_, DbPool>) -> Result<GlobalSetti
 #[tauri::command]
 pub async fn save_global_settings(
     pool: State<'_, DbPool>,
+    handles: State<'_, RuntimeHandles>,
     settings: GlobalSettings,
 ) -> Result<(), String> {
     sqlx::query(
         "UPDATE global_settings \
          SET api_key = ?, base_url_openai = ?, base_url_anthropic = ?, base_url_gemini = ?, \
              tavily_api_key = ?, web_search_enabled = ?, auto_title_mode = ?, \
-             thinking_effort = ? \
+             thinking_effort = ?, workspace_root = ?, auto_approve_readonly = ?, \
+             hooks_json = ? \
          WHERE id = 1",
     )
     .bind(&settings.api_key)
@@ -35,8 +41,20 @@ pub async fn save_global_settings(
     .bind(settings.web_search_enabled)
     .bind(&settings.auto_title_mode)
     .bind(&settings.thinking_effort)
+    .bind(&settings.workspace_root)
+    .bind(settings.auto_approve_readonly)
+    .bind(&settings.hooks_json)
     .execute(&*pool)
     .await
     .map_err(|e| e.to_string())?;
+
+    // Keep the built-ins runtime in sync so future FS/Bash calls see the
+    // new root without a restart.
+    let root = if settings.workspace_root.trim().is_empty() {
+        None
+    } else {
+        Some(PathBuf::from(&settings.workspace_root))
+    };
+    handles.builtins.set_workspace_root(root).await;
     Ok(())
 }

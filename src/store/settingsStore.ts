@@ -12,6 +12,9 @@ const EMPTY_GLOBAL_SETTINGS: GlobalSettings = {
   webSearchEnabled: true,
   autoTitleMode: 'every',
   thinkingEffort: 'off',
+  workspaceRoot: '',
+  autoApproveReadonly: true,
+  hooksJson: '{}',
 };
 
 interface SettingsState {

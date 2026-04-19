@@ -13,7 +13,8 @@ CREATE TABLE IF NOT EXISTS conversations (
     model_id       TEXT NOT NULL,
     active_leaf_id TEXT,
     pinned         INTEGER NOT NULL DEFAULT 0,
-    title_locked   INTEGER NOT NULL DEFAULT 0
+    title_locked   INTEGER NOT NULL DEFAULT 0,
+    mode           TEXT NOT NULL DEFAULT 'chat'
 );
 
 CREATE TABLE IF NOT EXISTS messages (
@@ -27,7 +28,8 @@ CREATE TABLE IF NOT EXISTS messages (
     model_name       TEXT,
     input_tokens     INTEGER,
     output_tokens    INTEGER,
-    thinking_skipped INTEGER NOT NULL DEFAULT 0
+    thinking_skipped INTEGER NOT NULL DEFAULT 0,
+    compacted        INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_messages_conv
@@ -55,7 +57,12 @@ CREATE TABLE IF NOT EXISTS global_settings (
     skills_scripts_enabled INTEGER NOT NULL DEFAULT 0,
     web_search_enabled     INTEGER NOT NULL DEFAULT 1,
     auto_title_mode        TEXT NOT NULL DEFAULT 'every',
-    thinking_effort        TEXT NOT NULL DEFAULT 'off'
+    thinking_effort        TEXT NOT NULL DEFAULT 'off',
+    workspace_root         TEXT NOT NULL DEFAULT '',
+    auto_approve_readonly  INTEGER NOT NULL DEFAULT 1,
+    auto_compact_mode      TEXT NOT NULL DEFAULT 'balanced',
+    auto_compact_threshold INTEGER NOT NULL DEFAULT 80,
+    hooks_json             TEXT NOT NULL DEFAULT '{}'
 );
 
 INSERT OR IGNORE INTO global_settings (id) VALUES (1);
@@ -77,6 +84,31 @@ CREATE TABLE IF NOT EXISTS mcp_servers (
 CREATE TABLE IF NOT EXISTS meta_flags (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
+);
+
+-- Persisted (tool, pattern) rules consulted by `check_permission` before any
+-- write / execute built-in runs. Session-level "Allow once / this session"
+-- decisions are tracked in memory on the frontend and do NOT land here.
+CREATE TABLE IF NOT EXISTS tool_permissions (
+    id          TEXT PRIMARY KEY,
+    tool_name   TEXT NOT NULL,
+    pattern     TEXT NOT NULL DEFAULT '',
+    decision    TEXT NOT NULL CHECK(decision IN ('allow','deny')),
+    created_at  INTEGER NOT NULL,
+    UNIQUE(tool_name, pattern)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tool_permissions_tool
+    ON tool_permissions(tool_name);
+
+-- Per-conversation todo list maintained by the model via `todo_write`.
+-- One row per conversation; the JSON blob is the full array (replace-in-place
+-- semantics, matching Claude Code's TodoWrite).
+CREATE TABLE IF NOT EXISTS conversation_todos (
+    conversation_id TEXT PRIMARY KEY
+        REFERENCES conversations(id) ON DELETE CASCADE,
+    todos_json      TEXT NOT NULL,
+    updated_at      INTEGER NOT NULL
 );
 
 -- Full-text search index for message bodies. Contentless table mirrors the
@@ -127,6 +159,18 @@ const MIGRATIONS: &[&str] = &[
     "ALTER TABLE messages ADD COLUMN output_tokens INTEGER",
     "ALTER TABLE global_settings ADD COLUMN thinking_effort TEXT NOT NULL DEFAULT 'off'",
     "ALTER TABLE messages ADD COLUMN thinking_skipped INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE global_settings ADD COLUMN workspace_root TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE global_settings ADD COLUMN auto_approve_readonly INTEGER NOT NULL DEFAULT 1",
+    // Phase B · TodoWrite storage. Re-executing the CREATE is cheap and safe.
+    "CREATE TABLE IF NOT EXISTS conversation_todos (\n        conversation_id TEXT PRIMARY KEY REFERENCES conversations(id) ON DELETE CASCADE,\n        todos_json      TEXT NOT NULL,\n        updated_at      INTEGER NOT NULL\n    )",
+    // Phase C · per-conversation plan/execute mode. Back-fills as 'chat'.
+    "ALTER TABLE conversations ADD COLUMN mode TEXT NOT NULL DEFAULT 'chat'",
+    // Phase E · compaction flag on messages and config knobs on
+    // global_settings + Hooks JSON blob.
+    "ALTER TABLE messages ADD COLUMN compacted INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE global_settings ADD COLUMN auto_compact_mode TEXT NOT NULL DEFAULT 'balanced'",
+    "ALTER TABLE global_settings ADD COLUMN auto_compact_threshold INTEGER NOT NULL DEFAULT 80",
+    "ALTER TABLE global_settings ADD COLUMN hooks_json TEXT NOT NULL DEFAULT '{}'",
 ];
 
 /// One-shot backfills. Keyed by a flag in `meta_flags`; skipped once done.

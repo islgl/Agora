@@ -46,6 +46,12 @@ pub enum MessagePart {
         #[serde(default)]
         is_error: bool,
     },
+    /// Boundary marker emitted at the start of each streamText step. Used by
+    /// the Plan renderer to group subsequent Thinking / ToolCall entries into
+    /// per-step tasks. No payload beyond an id so React has a stable key.
+    StepStart {
+        id: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -1,4 +1,12 @@
-import { Bot, KeyRound, Settings as SettingsIcon, Sparkles, Wand2 } from 'lucide-react';
+import {
+  Bot,
+  KeyRound,
+  Settings as SettingsIcon,
+  ShieldCheck,
+  Sparkles,
+  Wand2,
+  Webhook,
+} from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -11,6 +19,8 @@ import { ProvidersForm } from './ProvidersForm';
 import { CapabilitiesForm } from './CapabilitiesForm';
 import { GeneralForm } from './GeneralForm';
 import { McpServersList } from './McpServersList';
+import { HooksForm } from './HooksForm';
+import { PermissionsForm } from './PermissionsForm';
 import { SkillsList } from './SkillsList';
 
 const TAB_TRIGGER_CLASS =
@@ -40,9 +50,9 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
           className="h-full !gap-0"
         >
           <aside className="w-48 shrink-0 flex flex-col bg-muted/40 border-r border-border">
-            <div className="px-5 pt-5 pb-3">
+            <div data-tauri-drag-region className="px-5 pt-5 pb-3">
               <DialogTitle
-                className="text-foreground"
+                className="text-foreground pointer-events-none"
                 style={{ fontFamily: 'Georgia, serif', fontWeight: 500 }}
               >
                 Settings
@@ -74,6 +84,14 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
               <TabsTrigger value="skills" className={TAB_TRIGGER_CLASS}>
                 <Wand2 className="size-4 shrink-0" />
                 Skills
+              </TabsTrigger>
+              <TabsTrigger value="permissions" className={TAB_TRIGGER_CLASS}>
+                <ShieldCheck className="size-4 shrink-0" />
+                Permissions
+              </TabsTrigger>
+              <TabsTrigger value="hooks" className={TAB_TRIGGER_CLASS}>
+                <Webhook className="size-4 shrink-0" />
+                Hooks
               </TabsTrigger>
             </TabsList>
           </aside>
@@ -114,6 +132,18 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
               className="flex-1 min-w-0 min-h-0 overflow-y-auto px-6 py-6"
             >
               <SkillsList />
+            </TabsContent>
+            <TabsContent
+              value="permissions"
+              className="flex-1 min-w-0 min-h-0 overflow-y-auto px-6 py-6"
+            >
+              <PermissionsForm />
+            </TabsContent>
+            <TabsContent
+              value="hooks"
+              className="flex-1 min-w-0 min-h-0 overflow-y-auto px-6 py-6"
+            >
+              <HooksForm />
             </TabsContent>
           </div>
         </Tabs>

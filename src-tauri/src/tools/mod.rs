@@ -28,6 +28,11 @@ pub enum ToolSource {
     SkillBuiltin {
         kind: SkillBuiltinKind,
     },
+    /// First-class tools the agent ships with (FS, Bash, …). They run entirely
+    /// in Rust via `BuiltinsRuntime` and use bare names (no `mcp__` prefix).
+    Builtin {
+        kind: BuiltinKind,
+    },
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -36,6 +41,65 @@ pub enum SkillBuiltinKind {
     ReadSkill,
     ReadSkillFile,
     RunSkillScript,
+}
+
+/// Every first-class built-in tool the agent exposes. Keep this in lock-step
+/// with `BUILTIN_NAMES` below and the `list_tools()` emitter in `builtins/`.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum BuiltinKind {
+    ReadFile,
+    WriteFile,
+    EditFile,
+    Glob,
+    Grep,
+    Bash,
+    BashBackground,
+    ReadTaskOutput,
+    StopTask,
+}
+
+impl BuiltinKind {
+    pub fn tool_name(self) -> &'static str {
+        match self {
+            BuiltinKind::ReadFile => "read_file",
+            BuiltinKind::WriteFile => "write_file",
+            BuiltinKind::EditFile => "edit_file",
+            BuiltinKind::Glob => "glob",
+            BuiltinKind::Grep => "grep",
+            BuiltinKind::Bash => "bash",
+            BuiltinKind::BashBackground => "bash_background",
+            BuiltinKind::ReadTaskOutput => "read_task_output",
+            BuiltinKind::StopTask => "stop_task",
+        }
+    }
+
+    pub fn from_tool_name(name: &str) -> Option<Self> {
+        Some(match name {
+            "read_file" => BuiltinKind::ReadFile,
+            "write_file" => BuiltinKind::WriteFile,
+            "edit_file" => BuiltinKind::EditFile,
+            "glob" => BuiltinKind::Glob,
+            "grep" => BuiltinKind::Grep,
+            "bash" => BuiltinKind::Bash,
+            "bash_background" => BuiltinKind::BashBackground,
+            "read_task_output" => BuiltinKind::ReadTaskOutput,
+            "stop_task" => BuiltinKind::StopTask,
+            _ => return None,
+        })
+    }
+
+    /// Tools we know are safe enough to auto-approve when the global
+    /// `auto_approve_readonly` toggle is on. Keep conservative.
+    pub fn is_readonly(self) -> bool {
+        matches!(
+            self,
+            BuiltinKind::ReadFile
+                | BuiltinKind::Glob
+                | BuiltinKind::Grep
+                | BuiltinKind::ReadTaskOutput,
+        )
+    }
 }
 
 /// A call the model wants to make. `id` is whatever the provider handed us

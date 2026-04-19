@@ -38,6 +38,16 @@ gray_matter = { version = "0.2", default-features = false, features = ["yaml"] }
 tauri-plugin-dialog = "2"
 base64 = "0.22"
 
+# Built-in FS/Grep tools — same crates ripgrep ships with.
+ignore = "0.4"
+globset = "0.4"
+grep-regex = "0.1"
+grep-searcher = "0.1"
+walkdir = "2"
+
+[dev-dependencies]
+tempfile = "3"
+
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
 objc2-app-kit = { version = "0.3", features = [

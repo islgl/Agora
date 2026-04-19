@@ -43,7 +43,11 @@ export function MaskedKeyInput({
   return (
     <Input
       id={id}
-      type="password"
+      // Plain text on focus — a `password` input renders one dot per
+      // character, which blows up visually for 50-char API keys. Users
+      // focused the field to inspect/edit, so revealing the value is the
+      // whole point. Blurred state swaps back to the fixed 15-dot preview.
+      type="text"
       placeholder={placeholder}
       className={className}
       value={value}

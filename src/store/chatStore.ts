@@ -1,6 +1,13 @@
 import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/core';
-import type { Conversation, Message, MessagePart } from '@/types';
+import type {
+  Conversation,
+  ConversationMode,
+  Message,
+  MessagePart,
+  Todo,
+} from '@/types';
+import { usePermissionsStore } from './permissionsStore';
 
 export interface ActiveStream {
   streamId: string;
@@ -14,11 +21,19 @@ interface ChatState {
   currentConversationId: string | null;
   /** One in-flight stream per conversation, keyed by conversationId. */
   activeStreams: Record<string, ActiveStream>;
+  /** Per-conversation todo list, written by the model via `todo_write` and
+   *  read by the Plan UI. `undefined` = not yet hydrated from SQLite;
+   *  `[]` = loaded and intentionally empty. */
+  todos: Record<string, Todo[]>;
   /** Sidebar multi-select mode. */
   selectionMode: boolean;
   selectedIds: Set<string>;
   /** When set, <PrintOverlay> renders that conversation for window.print(). */
   printOverlayId: string | null;
+  /** Mode the user selected on the welcome screen before a conversation
+   *  exists. Applied to the first conversation created via `handleSend`,
+   *  then cleared. In-memory only; a fresh app session starts at null. */
+  pendingMode: ConversationMode | null;
 
   // Conversation actions
   setCurrentConversation: (id: string | null) => void;
@@ -35,6 +50,12 @@ interface ChatState {
   renameConversation: (id: string, title: string) => Promise<void>;
   setConversationPinned: (id: string, pinned: boolean) => Promise<void>;
   updateConversationTitleAuto: (id: string, title: string) => Promise<void>;
+  /** Switch chat/plan/execute for a conversation. Optimistic; persists to
+   *  SQLite. Read-only `chatStore` never rejects — invalid modes are caught
+   *  by the Rust command. */
+  setConversationMode: (id: string, mode: ConversationMode) => Promise<void>;
+  /** Stash a mode chosen on the welcome screen. Cleared when consumed. */
+  setPendingMode: (mode: ConversationMode | null) => void;
 
   // Message actions
   loadMessages: (conversationId: string, force?: boolean) => Promise<void>;
@@ -65,10 +86,27 @@ interface ChatState {
     outputTokens: number
   ) => void;
   markThinkingSkipped: (conversationId: string, messageId: string) => void;
+  /** Append a `step_start` marker to the message's parts. Idempotent on id. */
+  appendStepMarker: (
+    conversationId: string,
+    messageId: string,
+    stepId: string
+  ) => void;
   persistMessage: (msg: Message) => Promise<void>;
   switchBranch: (conversationId: string, messageId: string) => Promise<void>;
   setActiveLeaf: (conversationId: string, messageId: string) => Promise<void>;
   setActiveStream: (conversationId: string, stream: ActiveStream | null) => void;
+
+  // Todo actions (Phase B · model-managed plan)
+  /** Hydrate todos for a conversation from SQLite. Skips the IPC if already
+   *  loaded unless `force` is true. */
+  loadTodos: (conversationId: string, force?: boolean) => Promise<void>;
+  /** Replace the whole todo list for a conversation and persist to SQLite.
+   *  Called by the `todo_write` tool's execute handler. */
+  saveTodos: (conversationId: string, todos: Todo[]) => Promise<void>;
+  /** Local-only setter used by `todo_write` to push the new list into the
+   *  store immediately (before the SQLite round trip completes). */
+  setTodos: (conversationId: string, todos: Todo[]) => void;
 
   // Selection-mode actions
   enterSelectionMode: (seedId?: string) => void;
@@ -87,11 +125,15 @@ export const useChatStore = create<ChatState>()((set, get) => ({
   messages: {},
   currentConversationId: null,
   activeStreams: {},
+  todos: {},
   selectionMode: false,
   selectedIds: new Set<string>(),
   printOverlayId: null,
+  pendingMode: null,
 
   setCurrentConversation: (id) => set({ currentConversationId: id }),
+
+  setPendingMode: (mode) => set({ pendingMode: mode }),
 
   setActiveStream: (conversationId, stream) => {
     set((state) => {
@@ -153,11 +195,13 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       delete messages[id];
       const activeStreams = { ...state.activeStreams };
       delete activeStreams[id];
+      const todos = { ...state.todos };
+      delete todos[id];
       const currentConversationId =
         state.currentConversationId === id
           ? (conversations[0]?.id ?? null)
           : state.currentConversationId;
-      return { conversations, messages, currentConversationId, activeStreams };
+      return { conversations, messages, currentConversationId, activeStreams, todos };
     });
   },
 
@@ -178,6 +222,30 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     set({ conversations });
   },
 
+  setConversationMode: async (id, mode) => {
+    const prev =
+      get().conversations.find((c) => c.id === id)?.mode ?? 'chat';
+    set((state) => ({
+      conversations: state.conversations.map((c) =>
+        c.id === id ? { ...c, mode } : c,
+      ),
+    }));
+    await invoke('set_conversation_mode', { id, mode });
+
+    // Mode-scoped session allows: Execute auto-grants write/edit for the
+    // lifetime of the mode on this conversation. Leaving Execute revokes
+    // them so Chat/Plan re-prompt as expected. User-clicked "This session"
+    // allows are tagged separately and unaffected here.
+    const perms = usePermissionsStore.getState();
+    if (prev !== 'execute' && mode === 'execute') {
+      const source = { kind: 'mode-execute' as const, conversationId: id };
+      perms.addSessionAllow('write_file', '', source);
+      perms.addSessionAllow('edit_file', '', source);
+    } else if (prev === 'execute' && mode !== 'execute') {
+      perms.removeModeAllowsForConversation(id);
+    }
+  },
+
   updateConversationTitleAuto: async (id, title) => {
     await invoke('update_conversation_title_auto', { id, title });
     set((state) => ({
@@ -190,9 +258,22 @@ export const useChatStore = create<ChatState>()((set, get) => ({
   loadMessages: async (conversationId, force = false) => {
     if (!force && get().messages[conversationId]) return;
     const msgs = await invoke<Message[]>('load_messages', { conversationId });
-    set((state) => ({
-      messages: { ...state.messages, [conversationId]: msgs },
-    }));
+    set((state) => {
+      // Guard against a race: on a fresh conversation, `sendMessage` can
+      // run `appendMessage(userMsg)` while this call is still awaiting the
+      // Rust read. The Rust side returns stale/empty because our writes
+      // haven't landed yet — clobbering the store here would silently
+      // wipe the in-flight user + assistant bubbles. Non-force calls
+      // trust whatever's already in memory.
+      if (!force && state.messages[conversationId]) return state;
+      // Preserve any transient (UI-only) messages — e.g. ask_user answer
+      // bubbles — that aren't in the DB but should stay visible for the
+      // rest of the session.
+      const existing = state.messages[conversationId] ?? [];
+      const transients = existing.filter((m) => m.transient);
+      const merged = transients.length > 0 ? [...msgs, ...transients] : msgs;
+      return { messages: { ...state.messages, [conversationId]: merged } };
+    });
   },
 
   setActivePath: (conversationId, msgs) => {
@@ -364,6 +445,27 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     });
   },
 
+  appendStepMarker: (conversationId, messageId, stepId) => {
+    set((state) => {
+      const msgs = state.messages[conversationId] ?? [];
+      return {
+        messages: {
+          ...state.messages,
+          [conversationId]: msgs.map((m) => {
+            if (m.id !== messageId) return m;
+            const parts = m.parts ? [...m.parts] : [];
+            // Idempotent: the SDK can re-emit start-step on retries.
+            if (parts.some((p) => p.type === 'step_start' && p.id === stepId)) {
+              return m;
+            }
+            parts.push({ type: 'step_start', id: stepId });
+            return { ...m, parts };
+          }),
+        },
+      };
+    });
+  },
+
   persistMessage: async (msg) => {
     await invoke('save_message', { message: msg });
   },
@@ -380,6 +482,37 @@ export const useChatStore = create<ChatState>()((set, get) => ({
 
   setActiveLeaf: async (conversationId, messageId) => {
     await invoke('set_active_leaf', { conversationId, messageId });
+  },
+
+  loadTodos: async (conversationId, force = false) => {
+    if (!force && get().todos[conversationId]) return;
+    try {
+      const todos = await invoke<Todo[]>('get_todos', { conversationId });
+      set((state) => ({
+        todos: { ...state.todos, [conversationId]: todos },
+      }));
+    } catch (err) {
+      // Missing row / DB hiccup — treat as empty so the UI isn't wedged.
+      console.warn('get_todos failed', err);
+      set((state) => ({
+        todos: { ...state.todos, [conversationId]: [] },
+      }));
+    }
+  },
+
+  setTodos: (conversationId, todos) => {
+    set((state) => ({
+      todos: { ...state.todos, [conversationId]: todos },
+    }));
+  },
+
+  saveTodos: async (conversationId, todos) => {
+    // Optimistic local update — the Plan UI renders off the store, so the
+    // change should be visible without waiting on the IPC.
+    set((state) => ({
+      todos: { ...state.todos, [conversationId]: todos },
+    }));
+    await invoke('save_todos', { conversationId, todos });
   },
 
   enterSelectionMode: (seedId) => {
@@ -420,9 +553,11 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       const remaining = state.conversations.filter((c) => !state.selectedIds.has(c.id));
       const messages = { ...state.messages };
       const activeStreams = { ...state.activeStreams };
+      const todos = { ...state.todos };
       for (const id of state.selectedIds) {
         delete messages[id];
         delete activeStreams[id];
+        delete todos[id];
       }
       const currentConversationId =
         state.currentConversationId && state.selectedIds.has(state.currentConversationId)
@@ -432,6 +567,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
         conversations: remaining,
         messages,
         activeStreams,
+        todos,
         currentConversationId,
         selectionMode: false,
         selectedIds: new Set<string>(),

@@ -32,7 +32,7 @@ pub async fn export_conversation_markdown(
 ) -> Result<Option<String>, String> {
     let markdown = render_conversation_markdown(&pool, &conversation_id).await?;
     let conv: Conversation = sqlx::query_as(
-        "SELECT id, title, created_at, model_id, pinned, title_locked \
+        "SELECT id, title, created_at, model_id, pinned, title_locked, mode \
          FROM conversations WHERE id = ?",
     )
     .bind(&conversation_id)
@@ -65,7 +65,7 @@ pub async fn render_conversation_markdown(
     conversation_id: &str,
 ) -> Result<String, String> {
     let conv: Conversation = sqlx::query_as(
-        "SELECT id, title, created_at, model_id, pinned, title_locked \
+        "SELECT id, title, created_at, model_id, pinned, title_locked, mode \
          FROM conversations WHERE id = ?",
     )
     .bind(conversation_id)
@@ -215,6 +215,10 @@ fn render_parts(parts: &[MessagePart]) -> String {
                 // Markdown embeds the full data URL — the exported file is
                 // self-contained even without a network round-trip.
                 buf.push_str(&format!("![attachment]({})\n\n", data_url));
+            }
+            MessagePart::StepStart { .. } => {
+                // Step markers are UI-only (drive the Plan renderer); they
+                // don't belong in exported markdown.
             }
         }
     }

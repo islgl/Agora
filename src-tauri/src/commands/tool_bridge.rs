@@ -10,13 +10,16 @@ use tauri::State;
 use uuid::Uuid;
 
 use crate::state::RuntimeHandles;
-use crate::tools::{ToolCall, ToolSpec};
+use crate::tools::{BuiltinKind, ToolCall, ToolSpec};
 
 #[tauri::command]
 pub async fn list_frontend_tools(
     handles: State<'_, RuntimeHandles>,
 ) -> Result<Vec<ToolSpec>, String> {
     let mut tools: Vec<ToolSpec> = Vec::new();
+    // Order: built-ins first (they're the agent's default toolbelt), then
+    // Skills, then MCP. The frontend renders in list order.
+    tools.extend(handles.builtins.list_tools().await);
     tools.extend(handles.skills.list_tools().await);
     tools.extend(handles.mcp.list_tools().await);
     Ok(tools)
@@ -48,6 +51,8 @@ pub async fn invoke_tool(
         "read_skill" | "read_skill_file" | "run_skill_script"
     ) {
         handles.skills.invoke(&call).await
+    } else if BuiltinKind::from_tool_name(&name).is_some() {
+        handles.builtins.invoke(&call).await
     } else {
         return Err(format!("unknown tool: {}", name));
     };

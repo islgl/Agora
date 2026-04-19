@@ -5,6 +5,10 @@ import { useAiSdkChat } from '@/hooks/useAiSdkChat';
 import { MessageList } from './MessageList';
 import { ChatInput } from './ChatInput';
 import { ChatWelcome } from './ChatWelcome';
+import { ApprovalGate } from './ApprovalGate';
+import { AskUserGate } from './AskUserGate';
+import { SubagentsIndicator } from './SubagentsIndicator';
+import { AgentMdChip } from './AgentMdChip';
 import { toast } from 'sonner';
 import { celebrateFirstSendOnce } from '@/lib/celebration';
 
@@ -15,6 +19,7 @@ export function ChatArea() {
     messages,
     activeStreams,
     loadMessages,
+    loadTodos,
     renameConversation,
     createConversation,
     switchBranch,
@@ -46,8 +51,9 @@ export function ChatArea() {
   useEffect(() => {
     if (currentConversationId) {
       loadMessages(currentConversationId);
+      void loadTodos(currentConversationId);
     }
-  }, [currentConversationId, loadMessages]);
+  }, [currentConversationId, loadMessages, loadTodos]);
 
   const requireActiveModel = () => {
     const modelConfig = modelConfigs.find((m) => m.id === activeModelId);
@@ -75,6 +81,15 @@ export function ChatArea() {
       const conv = await createConversation(autoTitle, activeModelId ?? '');
       conversationId = conv.id;
       history = [];
+      // Apply the mode the user pre-selected on the welcome screen, if
+      // any. Await so `sendMessage` below reads the fresh mode when
+      // building the system prompt / turn context.
+      const chat = useChatStore.getState();
+      const pending = chat.pendingMode;
+      if (pending && pending !== 'chat') {
+        await chat.setConversationMode(conv.id, pending);
+      }
+      if (pending) chat.setPendingMode(null);
     } else if (
       currentMessages.length === 0 &&
       currentConversation?.title === 'New conversation'
@@ -159,6 +174,15 @@ export function ChatArea() {
     return (
       <div className="flex flex-col h-full min-h-0 min-w-0 overflow-hidden">
         <ChatWelcome />
+        <ApprovalGate />
+        <AskUserGate />
+        <div
+          className="flex justify-end items-center gap-2 px-4 pt-1"
+          data-chat-print="hide"
+        >
+          <AgentMdChip />
+          <SubagentsIndicator />
+        </div>
         <ChatInput onSend={handleSend} onStop={cancelCurrent} isStreaming={isStreaming} />
       </div>
     );
@@ -174,6 +198,11 @@ export function ChatArea() {
         onRegenerate={handleRegenerate}
         onSwitchBranch={handleSwitchBranch}
       />
+      <ApprovalGate />
+      <AskUserGate />
+      <div className="flex justify-end px-4 pt-1" data-chat-print="hide">
+        <SubagentsIndicator />
+      </div>
       <ChatInput onSend={handleSend} onStop={cancelCurrent} isStreaming={isStreaming} />
     </div>
   );

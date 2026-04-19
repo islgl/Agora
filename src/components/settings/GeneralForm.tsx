@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
+import { open } from '@tauri-apps/plugin-dialog';
+import { FolderOpen } from 'lucide-react';
 import { toast } from 'sonner';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Toggle } from '@/components/ui/toggle';
 import { useSettingsStore } from '@/store/settingsStore';
 import { SectionDivider } from './SectionDivider';
 import type { AutoTitleMode, GlobalSettings } from '@/types';
@@ -32,7 +36,26 @@ export function GeneralForm() {
     setForm(globalSettings);
   }, [globalSettings]);
 
-  const dirty = form.autoTitleMode !== globalSettings.autoTitleMode;
+  const dirty =
+    form.autoTitleMode !== globalSettings.autoTitleMode ||
+    form.workspaceRoot !== globalSettings.workspaceRoot ||
+    form.autoApproveReadonly !== globalSettings.autoApproveReadonly;
+
+  const pickWorkspace = async () => {
+    try {
+      const picked = await open({
+        directory: true,
+        multiple: false,
+        defaultPath: form.workspaceRoot || undefined,
+        title: 'Select workspace root',
+      });
+      if (typeof picked === 'string' && picked) {
+        setForm((f) => ({ ...f, workspaceRoot: picked }));
+      }
+    } catch (err) {
+      toast.error(`Picker failed: ${String(err)}`);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,6 +123,69 @@ export function GeneralForm() {
           If you rename a conversation yourself, auto-title stops touching it.
         </p>
       </div>
+
+      <SectionDivider />
+
+      <div className="space-y-2">
+        <Label className="text-sm text-muted-foreground">Workspace root</Label>
+        <p className="text-[11px] text-muted-foreground">
+          Built-in tools (read_file, glob, grep, write_file, bash) resolve
+          relative paths against this directory. Leave blank to require
+          absolute paths.
+        </p>
+        <div className="flex items-center gap-2">
+          <div
+            className="flex-1 min-w-0 rounded-xl border-border bg-card px-3 py-2 text-xs text-foreground truncate"
+            style={{ boxShadow: '0 0 0 1px var(--border)' }}
+            title={form.workspaceRoot || '(none)'}
+          >
+            {form.workspaceRoot || (
+              <span className="text-muted-foreground">No workspace selected</span>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={pickWorkspace}
+            className="px-3 py-2 rounded-xl text-xs bg-card hover:bg-accent
+                       flex items-center gap-1.5 text-foreground"
+            style={{ boxShadow: '0 0 0 1px var(--border)' }}
+          >
+            <FolderOpen className="size-3.5" />
+            Choose…
+          </button>
+          {form.workspaceRoot && (
+            <button
+              type="button"
+              onClick={() => setForm((f) => ({ ...f, workspaceRoot: '' }))}
+              className="px-2 py-2 rounded-xl text-xs text-muted-foreground hover:text-foreground hover:bg-accent"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div
+        className="flex items-start gap-3 p-3 rounded-xl bg-card"
+        style={{ boxShadow: '0 0 0 1px var(--border)' }}
+      >
+        <div className="space-y-0.5 flex-1 min-w-0">
+          <div className="text-sm text-foreground">Auto-approve read-only tools</div>
+          <div className="text-xs text-muted-foreground">
+            Lets the agent call <code>read_file</code>, <code>glob</code>,{' '}
+            <code>grep</code>, and <code>read_task_output</code> without asking.
+            Write / exec tools always prompt unless you save an allow rule.
+          </div>
+        </div>
+        <Toggle
+          checked={form.autoApproveReadonly}
+          onCheckedChange={(checked) =>
+            setForm((f) => ({ ...f, autoApproveReadonly: checked }))
+          }
+          className="mt-0.5"
+        />
+      </div>
+
 
       <SectionDivider />
 

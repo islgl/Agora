@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ReactElement } from 'react';
 import { MarkdownRenderer } from './MarkdownRenderer';
-import { ThinkingBlock } from './ThinkingBlock';
-import { ToolCallBlock } from './ToolCallBlock';
+import { AssistantPlan } from './AssistantPlan';
 import { MessageActions } from './MessageActions';
 import { ImageViewDialog } from '@/components/ui/ai-prompt-box';
 import type { Message, MessagePart } from '@/types';
@@ -132,63 +131,31 @@ function renderParts(
   parts: MessagePart[],
   streaming: boolean,
 ): ReactElement[] {
-  const resultsByCallId = new Map<
-    string,
-    Extract<MessagePart, { type: 'tool_result' }>
-  >();
-  for (const p of parts) {
-    if (p.type === 'tool_result') resultsByCallId.set(p.call_id, p);
+  const out: ReactElement[] = [];
+
+  // Anything "process-y" (thinking, tool activity, step boundaries) gets
+  // aggregated into a single Plan view at the top; the final text answer
+  // keeps rendering as markdown below.
+  const hasProcess = parts.some(
+    (p) =>
+      p.type === 'thinking' ||
+      p.type === 'tool_call' ||
+      p.type === 'tool_result' ||
+      p.type === 'step_start',
+  );
+  if (hasProcess) {
+    out.push(
+      <AssistantPlan key="__plan__" parts={parts} streaming={streaming} />,
+    );
   }
 
-  // The streaming flag threads through to the last non-result block only —
-  // earlier blocks in the same turn have already finished.
-  const lastNonResultIdx = (() => {
-    for (let i = parts.length - 1; i >= 0; i--) {
-      if (parts[i].type !== 'tool_result') return i;
-    }
-    return -1;
-  })();
-
-  // Assistant parts we know how to render here — text, thinking, tool_call.
-  // `tool_result` is paired into its call above; `image` only appears on
-  // user messages and is rendered separately in the user branch.
-  const renderable = parts
-    .map((p, i) => ({ p, i }))
-    .filter(
-      (
-        e,
-      ): e is {
-        p: Extract<MessagePart, { type: 'text' | 'thinking' | 'tool_call' }>;
-        i: number;
-      } =>
-        e.p.type === 'text' ||
-        e.p.type === 'thinking' ||
-        e.p.type === 'tool_call',
-    );
-
-  return renderable.map(({ p, i }, filteredIdx, arr) => {
-    const isLastOverall = i === lastNonResultIdx;
-    const isTailStreaming =
-      streaming && isLastOverall && filteredIdx === arr.length - 1;
-
+  parts.forEach((p, i) => {
     if (p.type === 'text') {
-      return <MarkdownRenderer key={i} content={p.text} />;
+      out.push(<MarkdownRenderer key={i} content={p.text} />);
     }
-    if (p.type === 'thinking') {
-      return (
-        <ThinkingBlock key={i} text={p.text} streaming={isTailStreaming} />
-      );
-    }
-    const result = resultsByCallId.get(p.id);
-    return (
-      <ToolCallBlock
-        key={i}
-        call={p}
-        result={result}
-        streaming={!result && isTailStreaming}
-      />
-    );
   });
+
+  return out;
 }
 
 interface EditBubbleProps {
