@@ -99,7 +99,13 @@ export function ModelList() {
 
   const groups = PROVIDER_ORDER.map((p) => ({
     provider: p,
-    models: modelConfigs.filter((m) => m.provider === p),
+    models: modelConfigs
+      .filter((m) => m.provider === p)
+      .sort((a, b) => {
+        if (a.id === activeModelId) return -1;
+        if (b.id === activeModelId) return 1;
+        return 0;
+      }),
   })).filter((g) => g.models.length > 0);
 
   const anyTesting = testing.size > 0 || testingAll;

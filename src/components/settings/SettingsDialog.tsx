@@ -38,7 +38,19 @@ interface SettingsDialogProps {
 
 export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      disablePointerDismissal
+      onOpenChange={(nextOpen, eventDetails) => {
+        // Dragging the window via a `data-tauri-drag-region` can briefly blur
+        // the webview; don't let that close the panel. Users dismiss via ✕ or Escape.
+        if (!nextOpen && eventDetails?.reason === 'focus-out') {
+          eventDetails.cancel();
+          return;
+        }
+        onOpenChange(nextOpen);
+      }}
+    >
       <DialogContent
         className="sm:max-w-3xl h-[640px] max-h-[85vh] grid-rows-1 p-0 gap-0 overflow-hidden
                    rounded-2xl bg-background border-border"

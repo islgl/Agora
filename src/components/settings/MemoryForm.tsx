@@ -48,21 +48,6 @@ export function MemoryForm() {
           />
         </div>
       </SettingsSection>
-
-      <SettingsSection
-        title="Embedding model"
-        description="Configure which embedding model powers extraction + Top-K recall under Models → Embedding. Changing the active model mid-project means older entries were embedded with a different vector space; low-scoring recall is expected until the index is rebuilt."
-      >
-        <div
-          className="p-3 rounded-xl bg-card text-xs text-muted-foreground leading-relaxed"
-          style={{ boxShadow: '0 0 0 1px var(--border)' }}
-        >
-          Active:
-          <span className="ml-1.5 font-medium text-foreground">
-            {globalSettings.embeddingModel || 'Not configured'}
-          </span>
-        </div>
-      </SettingsSection>
     </SettingsPage>
   );
 }

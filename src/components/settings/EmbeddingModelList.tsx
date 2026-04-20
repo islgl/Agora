@@ -37,7 +37,13 @@ export function EmbeddingModelList() {
         </p>
       ) : (
         <div className="space-y-2">
-          {embeddingConfigs.map((m) => (
+          {[...embeddingConfigs]
+            .sort((a, b) => {
+              if (a.id === activeEmbeddingId) return -1;
+              if (b.id === activeEmbeddingId) return 1;
+              return 0;
+            })
+            .map((m) => (
             <div
               key={m.id}
               className="flex items-center gap-3 p-3 rounded-xl bg-card min-w-0"

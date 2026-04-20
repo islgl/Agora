@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
-import { TooltipProvider } from '@/components/ui/tooltip';
+import { Gift } from 'lucide-react';
+import { TooltipProvider, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
 import { AppSidebar } from '@/components/layout/AppSidebar';
 import { WindowControls } from '@/components/layout/WindowControls';
 import { ChatArea } from '@/components/chat/ChatArea';
 import { PrintOverlay } from '@/components/chat/PrintOverlay';
+import { ShareCardDialog } from '@/components/share/ShareCardDialog';
 import { useChatStore } from '@/store/chatStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useAgentMdStore } from '@/store/agentMdStore';
@@ -22,6 +24,7 @@ export default function App() {
   const refreshAgentMd = useAgentMdStore((s) => s.refresh);
   const refreshBrand = useBrandStore((s) => s.refresh);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [giftOpen, setGiftOpen] = useState(false);
 
   useEffect(() => {
     loadConversations();
@@ -123,6 +126,27 @@ export default function App() {
         )}
 
         {!sidebarOpen && <WindowControls onOpenSidebar={() => setSidebarOpen(true)} />}
+
+        {/* Gift share button — top-right corner, always visible */}
+        <div
+          data-chat-print="hide"
+          className="fixed z-40"
+          style={{ top: 27, right: 16, transform: 'translateY(-50%)' }}
+        >
+          <Tooltip>
+            <TooltipTrigger
+              onClick={() => setGiftOpen(true)}
+              className="flex items-center justify-center size-7 rounded-lg
+                         text-muted-foreground hover:text-foreground
+                         hover:bg-[var(--titlebar-hover)] transition-colors"
+            >
+              <Gift className="size-3.5" />
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Share as a gift</TooltipContent>
+          </Tooltip>
+        </div>
+
+        <ShareCardDialog open={giftOpen} onOpenChange={setGiftOpen} />
 
         <PrintOverlay />
 
