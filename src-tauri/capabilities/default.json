@@ -3,7 +3,9 @@
   "identifier": "default",
   "description": "Capability for the main window",
   "windows": [
-    "main"
+    "main",
+    "menubar-panel",
+    "launcher"
   ],
   "permissions": [
     "core:default",

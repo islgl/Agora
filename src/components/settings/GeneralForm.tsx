@@ -28,7 +28,7 @@ const AUTO_TITLE_OPTIONS: { value: AutoTitleMode; label: string; hint: string }[
 ];
 
 export function GeneralForm() {
-  const { globalSettings, saveGlobalSettings } = useSettingsStore();
+  const { globalSettings, backgroundStatus, saveGlobalSettings } = useSettingsStore();
   const [form, setForm] = useState<GlobalSettings>(globalSettings);
   const [saving, setSaving] = useState(false);
 
@@ -39,7 +39,8 @@ export function GeneralForm() {
   const dirty =
     form.autoTitleMode !== globalSettings.autoTitleMode ||
     form.workspaceRoot !== globalSettings.workspaceRoot ||
-    form.autoApproveReadonly !== globalSettings.autoApproveReadonly;
+    form.autoApproveReadonly !== globalSettings.autoApproveReadonly ||
+    form.quickLaunchEnabled !== globalSettings.quickLaunchEnabled;
 
   const pickWorkspace = async () => {
     try {
@@ -145,6 +146,45 @@ export function GeneralForm() {
                 Clear
               </button>
             )}
+          </div>
+        </SettingsSection>
+
+        <SettingsSection
+          title="Background"
+          description="Agora keeps a menu bar icon available while the app is running. Click it to open the Agora quick panel, and optionally surface a fresh chat by double-tapping Option."
+        >
+          <div
+            className="flex items-start gap-3 p-3 rounded-xl bg-card"
+            style={{ boxShadow: '0 0 0 1px var(--border)' }}
+          >
+            <div className="space-y-0.5 flex-1 min-w-0">
+              <div className="text-sm text-foreground">Double Option quick launch</div>
+              <div className="text-xs text-muted-foreground">
+                Press Option twice quickly to bring Agora forward and start a new
+                conversation.
+              </div>
+              <div className="pt-1 text-[11px] text-muted-foreground">
+                {backgroundStatus?.quickLaunchMessage ??
+                  'Background status will appear here after launch.'}
+              </div>
+              {backgroundStatus && (
+                <div className="text-[11px] text-muted-foreground">
+                  Menu bar icon: {backgroundStatus.menubarReady ? 'Ready' : 'Unavailable'}
+                  {' · '}
+                  Listener: {backgroundStatus.quickLaunchActive ? 'Active' : 'Inactive'}
+                  {backgroundStatus.quickLaunchRequiresPermission
+                    ? ' · Permission may be required'
+                    : ''}
+                </div>
+              )}
+            </div>
+            <Toggle
+              checked={form.quickLaunchEnabled}
+              onCheckedChange={(checked) =>
+                setForm((f) => ({ ...f, quickLaunchEnabled: checked }))
+              }
+              className="mt-0.5"
+            />
           </div>
         </SettingsSection>
 

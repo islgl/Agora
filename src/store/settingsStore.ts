@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/core';
 import type {
+  BackgroundStatus,
   EmbeddingConfig,
   EmbeddingProvider,
   GlobalSettings,
@@ -27,6 +28,7 @@ const EMPTY_GLOBAL_SETTINGS: GlobalSettings = {
   embeddingConfigsJson: '{}',
   baseUrlEmbeddingCommon: '',
   autoMemoryEnabled: true,
+  quickLaunchEnabled: true,
 };
 
 const EMBEDDING_PROVIDERS: readonly EmbeddingProvider[] = ['openai'];
@@ -135,6 +137,7 @@ interface SettingsState {
   embeddingConfigs: EmbeddingConfig[];
   activeEmbeddingId: string | null;
   globalSettings: GlobalSettings;
+  backgroundStatus: BackgroundStatus | null;
 
   loadModelConfigs: () => Promise<void>;
   addModelConfig: (cfg: Omit<ModelConfig, 'id'>) => Promise<void>;
@@ -149,6 +152,8 @@ interface SettingsState {
 
   loadGlobalSettings: () => Promise<void>;
   saveGlobalSettings: (settings: GlobalSettings) => Promise<void>;
+  loadBackgroundStatus: () => Promise<void>;
+  setBackgroundStatus: (status: BackgroundStatus) => void;
 
   /** Merge per-model config with shared base URL + API key. */
   resolveModelConfig: (config: ModelConfig) => ModelConfig;
@@ -197,6 +202,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   embeddingConfigs: [],
   activeEmbeddingId: null,
   globalSettings: EMPTY_GLOBAL_SETTINGS,
+  backgroundStatus: null,
 
   loadModelConfigs: async () => {
     const configs = await invoke<ModelConfig[]>('load_model_configs');
@@ -297,6 +303,22 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
       embeddingConfigs: parsed.configs,
       activeEmbeddingId: parsed.activeId || parsed.configs[0]?.id || null,
     });
+    await get().loadBackgroundStatus();
+  },
+
+  loadBackgroundStatus: async () => {
+    const status = await invoke<BackgroundStatus>('load_background_status');
+    get().setBackgroundStatus(status);
+  },
+
+  setBackgroundStatus: (status) => {
+    set((state) => ({
+      backgroundStatus: status,
+      globalSettings: {
+        ...state.globalSettings,
+        quickLaunchEnabled: status.quickLaunchEnabled,
+      },
+    }));
   },
 
   addEmbeddingConfig: async (cfg) => {

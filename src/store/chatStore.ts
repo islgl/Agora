@@ -51,6 +51,11 @@ interface ChatState {
    *  exists. Applied to the first conversation created via `handleSend`,
    *  then cleared. In-memory only; a fresh app session starts at null. */
   pendingMode: ConversationMode | null;
+  /** Text submitted from the double-Option launcher window, waiting for the
+   *  main window's chat surface to pick it up as the first user turn of a
+   *  freshly created conversation. Consumed via
+   *  `consumePendingFirstMessage`. In-memory only. */
+  pendingFirstMessage: string | null;
 
   // Conversation actions
   setCurrentConversation: (id: string | null) => void;
@@ -73,6 +78,12 @@ interface ChatState {
   setConversationMode: (id: string, mode: ConversationMode) => Promise<void>;
   /** Stash a mode chosen on the welcome screen. Cleared when consumed. */
   setPendingMode: (mode: ConversationMode | null) => void;
+  /** Stash text from the launcher for the main window's ChatArea to send as
+   *  the first turn of a fresh conversation. Cleared when consumed. */
+  setPendingFirstMessage: (text: string | null) => void;
+  /** Atomic "read and clear" for the pending-first-message slot. Returns the
+   *  stashed text if any, then clears it so repeated calls yield null. */
+  consumePendingFirstMessage: () => string | null;
 
   // Message actions
   loadMessages: (conversationId: string, force?: boolean) => Promise<void>;
@@ -170,10 +181,19 @@ export const useChatStore = create<ChatState>()((set, get) => ({
   selectedIds: new Set<string>(),
   printOverlayId: null,
   pendingMode: null,
+  pendingFirstMessage: null,
 
   setCurrentConversation: (id) => set({ currentConversationId: id }),
 
   setPendingMode: (mode) => set({ pendingMode: mode }),
+
+  setPendingFirstMessage: (text) => set({ pendingFirstMessage: text }),
+
+  consumePendingFirstMessage: () => {
+    const stashed = get().pendingFirstMessage;
+    if (stashed != null) set({ pendingFirstMessage: null });
+    return stashed;
+  },
 
   setActiveStream: (conversationId, stream) => {
     set((state) => {

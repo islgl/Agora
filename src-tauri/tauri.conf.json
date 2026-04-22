@@ -10,6 +10,7 @@
     "frontendDist": "../dist"
   },
   "app": {
+    "macOSPrivateApi": true,
     "windows": [
       {
         "title": "Agora",
@@ -23,6 +24,38 @@
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
         "trafficLightPosition": { "x": 20, "y": 29 }
+      },
+      {
+        "label": "menubar-panel",
+        "create": false,
+        "title": "Agora",
+        "url": "index.html",
+        "width": 372,
+        "height": 430,
+        "resizable": false,
+        "focus": false,
+        "visible": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "shadow": false
+      },
+      {
+        "label": "launcher",
+        "create": false,
+        "title": "Agora Launcher",
+        "url": "index.html",
+        "width": 620,
+        "height": 120,
+        "resizable": false,
+        "focus": true,
+        "visible": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "shadow": false
       }
     ],
     "security": {

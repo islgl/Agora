@@ -1,3 +1,4 @@
+mod background;
 mod builtins;
 mod commands;
 mod db;
@@ -11,8 +12,8 @@ mod tools;
 mod wiki_watcher;
 
 use commands::{
-    branches, conversations, global_settings as global_settings_cmds, mcp as mcp_cmds,
-    messages, models as model_cmds,
+    background as background_cmds, branches, conversations,
+    global_settings as global_settings_cmds, mcp as mcp_cmds, messages, models as model_cmds,
 };
 use tauri::Manager;
 
@@ -21,6 +22,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .on_window_event(background::handle_window_event)
         .setup(|app| {
             let handle = app.handle().clone();
 
@@ -54,6 +56,7 @@ pub fn run() {
             let skill_registry = skills::SkillRegistry::new();
             let builtins_runtime = builtins::BuiltinsRuntime::new();
             let memory_store = memory_auto::MemoryStore::new(pool.clone());
+            let background_manager = background::BackgroundManager::new();
 
             // Best-effort startup: connect any enabled MCP servers and load
             // skills from ~/.agora/skills. Both tolerate failure silently so a
@@ -163,14 +166,28 @@ pub fn run() {
                 });
             }
 
-            app.manage(pool);
+            app.manage(pool.clone());
             app.manage(state::AppState::default());
             app.manage(state::RuntimeHandles {
                 mcp: mcp_manager,
                 skills: skill_registry,
                 builtins: builtins_runtime,
                 memory: memory_store,
+                background: background_manager.clone(),
             });
+
+            if let Ok(settings) = tauri::async_runtime::block_on(sqlx::query_as::<_, models::GlobalSettings>(
+                "SELECT api_key, base_url_openai, base_url_anthropic, base_url_gemini, tavily_api_key, \
+                        web_search_enabled, auto_title_mode, thinking_effort, \
+                        workspace_root, auto_approve_readonly, hooks_json, active_model_id, \
+                        embedding_provider, embedding_model, embedding_configs_json, \
+                        base_url_embedding_common, auto_memory_enabled, quick_launch_enabled \
+                 FROM global_settings WHERE id = 1",
+            )
+            .fetch_one(&pool))
+            {
+                background_manager.initialize(&handle, &settings);
+            }
 
             // Phase 4 · kick off the Raw-Layer file watcher so drops
             // into ~/.agora/raw/ fire the `wiki-ingest-request` event.
@@ -201,6 +218,10 @@ pub fn run() {
             commands::pdf::save_conversation_pdf,
             commands::share::share_conversation,
             commands::search::search_conversations,
+            background_cmds::load_background_status,
+            background_cmds::perform_background_action,
+            background_cmds::perform_launcher_submit,
+            background_cmds::hide_launcher_window,
             global_settings_cmds::load_global_settings,
             global_settings_cmds::save_global_settings,
             commands::ai_proxy::proxy_ai_request,

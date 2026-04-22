@@ -31,6 +31,7 @@ export function ChatArea() {
     cancelQueuedMessage,
     setConversationMode,
   } = useChatStore();
+  const pendingFirstMessage = useChatStore((s) => s.pendingFirstMessage);
 
   const { modelConfigs, activeModelId, resolveModelConfig, globalSettings } =
     useSettingsStore();
@@ -139,6 +140,33 @@ export function ChatArea() {
       toast.error(String(err));
     }
   };
+
+  // Auto-send text handed off from the double-Option launcher. Fires on
+  // the first render where the current conversation is fresh (no messages
+  // yet) and the store has a stashed `pendingFirstMessage`. Consumes the
+  // slot atomically so a later switch back to the same conv doesn't
+  // re-send. `pendingFirstMessage` lives in the deps so this effect fires
+  // even when the launcher flow reuses the already-current blank conv —
+  // otherwise the stash would be set but no dep would change, and the
+  // send would never happen.
+  useEffect(() => {
+    if (!currentConversationId) return;
+    if (currentMessages.length > 0) return;
+    if (isStreaming) return;
+    if (!pendingFirstMessage) return;
+    const pending = useChatStore.getState().consumePendingFirstMessage();
+    if (!pending) return;
+    void handleSend(pending);
+    // handleSend is re-created every render so omitting it from deps
+    // keeps the effect from firing on unrelated re-renders; the guards
+    // above already bail when there's nothing to do.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    currentConversationId,
+    currentMessages.length,
+    isStreaming,
+    pendingFirstMessage,
+  ]);
 
   const handleEdit = async (messageId: string, newContent: string) => {
     if (!currentConversationId) return;

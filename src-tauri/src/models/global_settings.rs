@@ -68,6 +68,10 @@ pub struct GlobalSettings {
     /// When true, the post-turn memory extractor runs.
     #[serde(default = "default_true")]
     pub auto_memory_enabled: bool,
+    /// When true, pressing Option twice quickly should surface the app and
+    /// start a fresh conversation in the background.
+    #[serde(default = "default_true")]
+    pub quick_launch_enabled: bool,
 }
 
 fn default_embedding_provider() -> String {

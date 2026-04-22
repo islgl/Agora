@@ -1,5 +1,6 @@
 use std::sync::Mutex;
 
+use crate::background::SharedBackgroundManager;
 use crate::builtins::SharedBuiltinsRuntime;
 use crate::mcp::SharedMcpManager;
 use crate::memory_auto::SharedMemoryStore;
@@ -22,4 +23,5 @@ pub struct RuntimeHandles {
     pub skills: SharedSkillRegistry,
     pub builtins: SharedBuiltinsRuntime,
     pub memory: SharedMemoryStore,
+    pub background: SharedBackgroundManager,
 }

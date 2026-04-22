@@ -151,6 +151,17 @@ export interface GlobalSettings {
    *  When false, the store is read-only — only explicit `remember` calls
    *  mutate it. Recall still happens either way. */
   autoMemoryEnabled: boolean;
+  /** When true, pressing Option twice should surface Agora and start a
+   *  fresh conversation from the background. */
+  quickLaunchEnabled: boolean;
+}
+
+export interface BackgroundStatus {
+  menubarReady: boolean;
+  quickLaunchEnabled: boolean;
+  quickLaunchActive: boolean;
+  quickLaunchRequiresPermission: boolean;
+  quickLaunchMessage: string;
 }
 
 export interface SkillsMeta {

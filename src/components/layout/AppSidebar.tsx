@@ -14,13 +14,13 @@ import { useTheme } from 'next-themes';
 import { useEffect } from 'react';
 import { ConversationList } from './ConversationList';
 import { SelectionBar } from './SelectionBar';
-import { SettingsDialog } from '@/components/settings/SettingsDialog';
 import { useChatStore } from '@/store/chatStore';
 import { useSettingsStore } from '@/store/settingsStore';
 
 interface AppSidebarProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onOpenSettings: () => void;
 }
 
 // Card metrics — header is sized + offset so that its icons share a
@@ -30,8 +30,7 @@ interface AppSidebarProps {
 const CARD_TOP_PX = 7;
 const HEADER_HEIGHT_PX = 44;
 
-export function AppSidebar({ open, onOpenChange }: AppSidebarProps) {
-  const [settingsOpen, setSettingsOpen] = useState(false);
+export function AppSidebar({ open, onOpenChange, onOpenSettings }: AppSidebarProps) {
   const [search, setSearch] = useState('');
   const {
     startNewConversation,
@@ -174,15 +173,13 @@ export function AppSidebar({ open, onOpenChange }: AppSidebarProps) {
             size="sm"
             className="w-full justify-start gap-2 text-muted-foreground hover:text-sidebar-foreground
                        hover:bg-sidebar-accent rounded-lg h-9"
-            onClick={() => setSettingsOpen(true)}
+            onClick={onOpenSettings}
           >
             <Settings className="size-4" />
             <span className="text-sm">Settings</span>
           </Button>
         </div>
       </aside>
-
-      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </>
   );
 }

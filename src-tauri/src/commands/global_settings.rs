@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use tauri::State;
+use tauri::{AppHandle, State};
 
 use crate::db::DbPool;
 use crate::models::GlobalSettings;
@@ -14,7 +14,7 @@ pub async fn load_global_settings(pool: State<'_, DbPool>) -> Result<GlobalSetti
                 workspace_root, auto_approve_readonly, hooks_json, active_model_id, \
                 embedding_provider, embedding_model, embedding_configs_json, \
                 base_url_embedding_common, \
-                auto_memory_enabled \
+                auto_memory_enabled, quick_launch_enabled \
          FROM global_settings WHERE id = 1",
     )
     .fetch_one(&*pool)
@@ -24,6 +24,7 @@ pub async fn load_global_settings(pool: State<'_, DbPool>) -> Result<GlobalSetti
 
 #[tauri::command]
 pub async fn save_global_settings(
+    app: AppHandle,
     pool: State<'_, DbPool>,
     handles: State<'_, RuntimeHandles>,
     settings: GlobalSettings,
@@ -36,7 +37,8 @@ pub async fn save_global_settings(
              hooks_json = ?, active_model_id = ?, \
              embedding_provider = ?, embedding_model = ?, embedding_configs_json = ?, \
              base_url_embedding_common = ?, \
-             auto_memory_enabled = ? \
+             auto_memory_enabled = ?, \
+             quick_launch_enabled = ? \
          WHERE id = 1",
     )
     .bind(&settings.api_key)
@@ -56,6 +58,7 @@ pub async fn save_global_settings(
     .bind(&settings.embedding_configs_json)
     .bind(&settings.base_url_embedding_common)
     .bind(settings.auto_memory_enabled)
+    .bind(settings.quick_launch_enabled)
     .execute(&*pool)
     .await
     .map_err(|e| e.to_string())?;
@@ -68,5 +71,6 @@ pub async fn save_global_settings(
         Some(PathBuf::from(&settings.workspace_root))
     };
     handles.builtins.set_workspace_root(root).await;
+    handles.background.apply_settings(&app, &settings);
     Ok(())
 }

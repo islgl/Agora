@@ -63,7 +63,8 @@ CREATE TABLE IF NOT EXISTS global_settings (
     auto_compact_mode      TEXT NOT NULL DEFAULT 'balanced',
     auto_compact_threshold INTEGER NOT NULL DEFAULT 80,
     hooks_json             TEXT NOT NULL DEFAULT '{}',
-    active_model_id        TEXT NOT NULL DEFAULT ''
+    active_model_id        TEXT NOT NULL DEFAULT '',
+    quick_launch_enabled   INTEGER NOT NULL DEFAULT 1
 );
 
 INSERT OR IGNORE INTO global_settings (id) VALUES (1);
@@ -190,6 +191,7 @@ const MIGRATIONS: &[&str] = &[
     // fall back to the chat `base_url_*` field of the same provider.
     "ALTER TABLE global_settings ADD COLUMN base_url_embedding_common TEXT NOT NULL DEFAULT ''",
     "ALTER TABLE global_settings ADD COLUMN base_url_embedding_openai TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE global_settings ADD COLUMN quick_launch_enabled INTEGER NOT NULL DEFAULT 1",
 ];
 
 /// One-shot backfills. Keyed by a flag in `meta_flags`; skipped once done.

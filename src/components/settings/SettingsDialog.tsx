@@ -40,10 +40,9 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
   return (
     <Dialog
       open={open}
-      disablePointerDismissal
       onOpenChange={(nextOpen, eventDetails) => {
         // Dragging the window via a `data-tauri-drag-region` can briefly blur
-        // the webview; don't let that close the panel. Users dismiss via ✕ or Escape.
+        // the webview; don't let that close the panel.
         if (!nextOpen && eventDetails?.reason === 'focus-out') {
           eventDetails.cancel();
           return;
