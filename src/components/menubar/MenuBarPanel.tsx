@@ -2,6 +2,7 @@ import { useEffect, useMemo, type ComponentType } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { ArrowUpRight, Settings, SquarePen } from 'lucide-react';
+import { useTheme } from 'next-themes';
 import { toast } from 'sonner';
 import { Toaster } from '@/components/ui/sonner';
 import type { BackgroundAction } from '@/lib/background';
@@ -36,7 +37,7 @@ function QuickActionCard({
         className="flex size-10 shrink-0 items-center justify-center rounded-2xl"
         style={{
           background: accent,
-          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.45)',
+          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.18)',
         }}
       >
         <Icon className="size-4 text-foreground" />
@@ -55,6 +56,8 @@ function QuickActionCard({
 
 export function MenuBarPanel() {
   const panelWindow = useMemo(() => getCurrentWebviewWindow(), []);
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === 'dark';
 
   useEffect(() => {
     const prevHtmlBackground = document.documentElement.style.backgroundColor;
@@ -117,20 +120,37 @@ export function MenuBarPanel() {
           className="relative h-full overflow-hidden rounded-[26px]
                      bg-card text-foreground"
           style={{
-            boxShadow: [
-              'inset 0 1px 0 rgba(255,255,255,0.55)',
-              'inset 0 -1px 0 rgba(0,0,0,0.08)',
-              'inset 0 0 0 1px rgba(255,255,255,0.14)',
-            ].join(', '),
-            backgroundImage: [
-              'radial-gradient(circle at top right, rgba(201,100,66,0.16), transparent 34%)',
-              'radial-gradient(circle at top left, rgba(56,152,236,0.08), transparent 28%)',
-              'linear-gradient(180deg, rgba(255,255,255,0.75), rgba(255,255,255,0.06))',
-              'radial-gradient(ellipse at top, transparent 45%, rgba(0,0,0,0.06) 100%)',
-            ].join(', '),
+            boxShadow: isDark
+              ? [
+                  'inset 0 1px 0 rgba(255,255,255,0.07)',
+                  'inset 0 -1px 0 rgba(0,0,0,0.40)',
+                  'inset 0 0 0 1px rgba(255,255,255,0.06)',
+                ].join(', ')
+              : [
+                  'inset 0 1px 0 rgba(255,255,255,0.55)',
+                  'inset 0 -1px 0 rgba(0,0,0,0.08)',
+                  'inset 0 0 0 1px rgba(255,255,255,0.14)',
+                ].join(', '),
+            backgroundImage: isDark
+              ? [
+                  'radial-gradient(circle at top right, rgba(201,100,66,0.10), transparent 34%)',
+                  'radial-gradient(circle at top left, rgba(56,152,236,0.07), transparent 28%)',
+                  'linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.14))',
+                  'radial-gradient(ellipse at top, transparent 45%, rgba(0,0,0,0.25) 100%)',
+                ].join(', ')
+              : [
+                  'radial-gradient(circle at top right, rgba(201,100,66,0.16), transparent 34%)',
+                  'radial-gradient(circle at top left, rgba(56,152,236,0.08), transparent 28%)',
+                  'linear-gradient(180deg, rgba(255,255,255,0.75), rgba(255,255,255,0.06))',
+                  'radial-gradient(ellipse at top, transparent 45%, rgba(0,0,0,0.06) 100%)',
+                ].join(', '),
           }}
         >
-          <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-white/35 to-transparent pointer-events-none" />
+          <div
+            className={`absolute inset-x-0 top-0 h-20 bg-gradient-to-b to-transparent pointer-events-none ${
+              isDark ? 'from-white/[0.04]' : 'from-white/35'
+            }`}
+          />
 
           <div className="relative flex h-full flex-col p-6">
             <div className="px-1 pb-5">
@@ -149,21 +169,27 @@ export function MenuBarPanel() {
               <QuickActionCard
                 title="New conversation"
                 description="Bring Agora forward and open a fresh chat instantly."
-                accent="linear-gradient(135deg, rgba(217,119,87,0.35), rgba(255,244,230,0.88))"
+                accent={isDark
+                  ? 'linear-gradient(135deg, rgba(217,119,87,0.50), rgba(110,45,18,0.88))'
+                  : 'linear-gradient(135deg, rgba(217,119,87,0.35), rgba(255,244,230,0.88))'}
                 icon={SquarePen}
                 onClick={() => void runBackgroundAction('new-conversation')}
               />
               <QuickActionCard
                 title="Open Agora"
                 description="Return to the full workspace without starting a new chat."
-                accent="linear-gradient(135deg, rgba(56,152,236,0.18), rgba(240,247,255,0.92))"
+                accent={isDark
+                  ? 'linear-gradient(135deg, rgba(56,152,236,0.45), rgba(18,45,90,0.88))'
+                  : 'linear-gradient(135deg, rgba(56,152,236,0.18), rgba(240,247,255,0.92))'}
                 icon={ArrowUpRight}
                 onClick={() => void runBackgroundAction('open-agora')}
               />
               <QuickActionCard
                 title="Settings"
                 description="Jump straight into configuration and background preferences."
-                accent="linear-gradient(135deg, rgba(20,20,19,0.09), rgba(255,255,255,0.86))"
+                accent={isDark
+                  ? 'linear-gradient(135deg, rgba(90,90,85,0.50), rgba(35,35,32,0.88))'
+                  : 'linear-gradient(135deg, rgba(20,20,19,0.09), rgba(255,255,255,0.86))'}
                 icon={Settings}
                 onClick={() => void runBackgroundAction('open-settings')}
               />

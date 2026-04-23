@@ -199,6 +199,11 @@ const MIGRATIONS: &[&str] = &[
     // SELECT doesn't need a special decode.
     "ALTER TABLE global_settings ADD COLUMN auto_dream_on_idle INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE global_settings ADD COLUMN dream_idle_minutes INTEGER NOT NULL DEFAULT 60",
+    // Phase 7 (personalized greeting). Display name shown in the welcome screen.
+    "ALTER TABLE global_settings ADD COLUMN nickname TEXT NOT NULL DEFAULT ''",
+    // Phase 8 — ensure quick_launch_enabled is on for existing rows that
+    // were written before the column had a proper DEFAULT 1 in the schema.
+    "UPDATE global_settings SET quick_launch_enabled = 1 WHERE id = 1 AND quick_launch_enabled = 0",
 ];
 
 /// One-shot backfills. Keyed by a flag in `meta_flags`; skipped once done.

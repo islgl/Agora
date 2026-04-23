@@ -174,18 +174,26 @@ pub fn run() {
                 background: background_manager.clone(),
             });
 
-            if let Ok(settings) = tauri::async_runtime::block_on(sqlx::query_as::<_, models::GlobalSettings>(
+            // Must SELECT every column the `GlobalSettings` FromRow decodes,
+            // or sqlx bails out before we can call `initialize` — and
+            // `initialize` is what creates the menubar tray icon and starts
+            // the Option-double-tap monitor. A missing column here means the
+            // app launches with no tray and a dead quick-launch hotkey until
+            // the user opens Settings and hits Save (which runs
+            // `apply_settings` → `initialize` on the same code path).
+            let settings_row = tauri::async_runtime::block_on(sqlx::query_as::<_, models::GlobalSettings>(
                 "SELECT api_key, base_url_openai, base_url_anthropic, base_url_gemini, tavily_api_key, \
                         web_search_enabled, auto_title_mode, thinking_effort, \
                         workspace_root, auto_approve_readonly, hooks_json, active_model_id, \
                         embedding_provider, embedding_model, embedding_configs_json, \
                         base_url_embedding_common, auto_memory_enabled, quick_launch_enabled, \
-                        close_to_tray_enabled \
+                        close_to_tray_enabled, auto_dream_on_idle, dream_idle_minutes, nickname \
                  FROM global_settings WHERE id = 1",
             )
-            .fetch_one(&pool))
-            {
-                background_manager.initialize(&handle, &settings);
+            .fetch_one(&pool));
+            match settings_row {
+                Ok(settings) => background_manager.initialize(&handle, &settings),
+                Err(err) => eprintln!("failed to load global_settings for background init: {err}"),
             }
 
             // Phase 4 · kick off the Raw-Layer file watcher so drops
@@ -217,6 +225,7 @@ pub fn run() {
             commands::pdf::save_conversation_pdf,
             commands::share::share_conversation,
             commands::search::search_conversations,
+            commands::search::search_messages,
             background_cmds::load_background_status,
             background_cmds::perform_background_action,
             background_cmds::perform_launcher_submit,
@@ -271,6 +280,19 @@ pub fn run() {
             commands::skills::create_skill,
             commands::skills::delete_skill,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while running tauri application")
+        .run(|app, event| {
+            if let tauri::RunEvent::Reopen {
+                has_visible_windows,
+                ..
+            } = event
+            {
+                if !has_visible_windows {
+                    if let Err(err) = background::show_main_window(app) {
+                        eprintln!("dock reopen: failed to show main window: {err}");
+                    }
+                }
+            }
+        });
 }

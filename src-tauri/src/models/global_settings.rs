@@ -85,6 +85,10 @@ pub struct GlobalSettings {
     /// firing. Ignored when `auto_dream_on_idle` is false.
     #[serde(default = "default_dream_idle_minutes")]
     pub dream_idle_minutes: i64,
+    /// Display name shown in the welcome greeting. Empty = no personalized
+    /// greeting.
+    #[serde(default)]
+    pub nickname: String,
 }
 
 fn default_embedding_provider() -> String {

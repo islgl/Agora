@@ -32,6 +32,7 @@ const EMPTY_GLOBAL_SETTINGS: GlobalSettings = {
   closeToTrayEnabled: true,
   autoDreamOnIdle: false,
   dreamIdleMinutes: 60,
+  nickname: '',
 };
 
 const EMBEDDING_PROVIDERS: readonly EmbeddingProvider[] = ['openai'];

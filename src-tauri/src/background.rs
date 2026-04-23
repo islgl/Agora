@@ -599,7 +599,7 @@ pub fn dispatch_background_action_with_text(
     });
 }
 
-fn show_main_window(app: &AppHandle) -> Result<bool, String> {
+pub fn show_main_window(app: &AppHandle) -> Result<bool, String> {
     let (window, created) = ensure_main_window(app)?;
     window.show().map_err(|e| e.to_string())?;
     let _ = window.unminimize();
@@ -747,7 +747,8 @@ mod macos {
     }
 
     pub struct OptionDoubleTapMonitor {
-        handle: MonitorHandle,
+        global: MonitorHandle,
+        local: Option<LocalMonitorHandle>,
     }
 
     struct MonitorHandle {
@@ -758,6 +759,43 @@ mod macos {
     unsafe impl Send for MonitorHandle {}
     unsafe impl Sync for MonitorHandle {}
 
+    struct LocalMonitorHandle {
+        monitor: Retained<AnyObject>,
+        _block: RcBlock<dyn Fn(NonNull<NSEvent>) -> *mut NSEvent + 'static>,
+    }
+
+    unsafe impl Send for LocalMonitorHandle {}
+    unsafe impl Sync for LocalMonitorHandle {}
+
+    fn handle_option_event(
+        event: &NSEvent,
+        threshold: f64,
+        tap_state: &Arc<Mutex<TapState>>,
+        app: &AppHandle,
+    ) {
+        if !should_trigger_launch(event, threshold, tap_state) {
+            return;
+        }
+        let main_focused = app
+            .get_webview_window("main")
+            .and_then(|window| window.is_focused().ok())
+            .unwrap_or(false);
+        let panel_focused = app
+            .get_webview_window(PANEL_WINDOW_LABEL)
+            .and_then(|window| window.is_focused().ok())
+            .unwrap_or(false);
+        let launcher_focused = app
+            .get_webview_window(LAUNCHER_WINDOW_LABEL)
+            .and_then(|window| window.is_focused().ok())
+            .unwrap_or(false);
+        if main_focused || panel_focused || launcher_focused {
+            return;
+        }
+        if let Err(err) = show_launcher(app) {
+            eprintln!("failed to show launcher: {err}");
+        }
+    }
+
     impl OptionDoubleTapMonitor {
         pub fn start(app: AppHandle) -> Result<Self, String> {
             let (tx, rx) = std::sync::mpsc::channel();
@@ -766,54 +804,86 @@ mod macos {
             app.run_on_main_thread(move || {
                 let tap_state = Arc::new(Mutex::new(TapState::new()));
                 let threshold = NSEvent::doubleClickInterval();
-                let block = RcBlock::new(move |event_ptr: NonNull<NSEvent>| {
-                    let event = unsafe { event_ptr.as_ref() };
-                    if should_trigger_launch(event, threshold, &tap_state) {
-                        let main_focused = app_for_monitor
-                            .get_webview_window("main")
-                            .and_then(|window| window.is_focused().ok())
-                            .unwrap_or(false);
-                        let panel_focused = app_for_monitor
-                            .get_webview_window(PANEL_WINDOW_LABEL)
-                            .and_then(|window| window.is_focused().ok())
-                            .unwrap_or(false);
-                        let launcher_focused = app_for_monitor
-                            .get_webview_window(LAUNCHER_WINDOW_LABEL)
-                            .and_then(|window| window.is_focused().ok())
-                            .unwrap_or(false);
-                        if main_focused || panel_focused || launcher_focused {
-                            return;
-                        }
-                        if let Err(err) = show_launcher(&app_for_monitor) {
-                            eprintln!("failed to show launcher: {err}");
-                        }
-                    }
-                });
-
                 let mask = NSEventMask::from_type(NSEventType::FlagsChanged)
                     | NSEventMask::from_type(NSEventType::KeyDown)
                     | NSEventMask::from_type(NSEventType::KeyUp);
-                let handle = NSEvent::addGlobalMonitorForEventsMatchingMask_handler(mask, &block)
-                    .map(|monitor| MonitorHandle {
+
+                // Global monitor — fires for events posted to *other* apps.
+                // This is the common quick-launch case: user is working in
+                // Safari/VS Code/etc. and double-taps Option to summon Agora.
+                // A missing handle here means Accessibility permission was
+                // denied, which is a hard failure for the feature.
+                let state_for_global = Arc::clone(&tap_state);
+                let app_for_global = app_for_monitor.clone();
+                let global_block = RcBlock::new(move |event_ptr: NonNull<NSEvent>| {
+                    let event = unsafe { event_ptr.as_ref() };
+                    handle_option_event(event, threshold, &state_for_global, &app_for_global);
+                });
+                let global = match NSEvent::addGlobalMonitorForEventsMatchingMask_handler(
+                    mask,
+                    &global_block,
+                ) {
+                    Some(monitor) => MonitorHandle {
                         monitor,
-                        _block: block,
+                        _block: global_block,
+                    },
+                    None => {
+                        let _ = tx.send(Err(QUICK_LAUNCH_PERMISSION_MESSAGE.to_string()));
+                        return;
+                    }
+                };
+
+                // Local monitor — fires for events posted to *this* app.
+                // Needed because hiding the main window to tray keeps Agora
+                // frontmost, so Option taps are dispatched here and bypass
+                // the global monitor entirely. The block must return the
+                // event pointer unmodified so normal input still reaches our
+                // own windows.
+                let state_for_local = Arc::clone(&tap_state);
+                let app_for_local = app_for_monitor.clone();
+                let local_block =
+                    RcBlock::new(move |event_ptr: NonNull<NSEvent>| -> *mut NSEvent {
+                        let event = unsafe { event_ptr.as_ref() };
+                        handle_option_event(event, threshold, &state_for_local, &app_for_local);
+                        event_ptr.as_ptr()
                     });
-                let _ = tx.send(handle);
+                // SAFETY: `local_block` returns the input event pointer as-is,
+                // satisfying the documented "valid pointer or null" contract
+                // and leaving the event free to continue to its target window.
+                let local = unsafe {
+                    NSEvent::addLocalMonitorForEventsMatchingMask_handler(mask, &local_block)
+                }
+                .map(|monitor| LocalMonitorHandle {
+                    monitor,
+                    _block: local_block,
+                });
+                if local.is_none() {
+                    eprintln!(
+                        "failed to install local Option-double-tap monitor; \
+                         quick-launch will only work while Agora is in the background"
+                    );
+                }
+
+                let _ = tx.send(Ok(Self { global, local }));
             })
             .map_err(|e| e.to_string())?;
 
             match rx.recv() {
-                Ok(Some(handle)) => Ok(Self { handle }),
-                Ok(None) => Err(QUICK_LAUNCH_PERMISSION_MESSAGE.to_string()),
+                Ok(Ok(this)) => Ok(this),
+                Ok(Err(msg)) => Err(msg),
                 Err(err) => Err(err.to_string()),
             }
         }
 
         pub fn stop(self, app: &AppHandle) {
-            let handle = self.handle;
+            let Self { global, local } = self;
             let _ = app.run_on_main_thread(move || unsafe {
-                NSEvent::removeMonitor(&handle.monitor);
-                drop(handle);
+                NSEvent::removeMonitor(&global.monitor);
+                if let Some(local) = local.as_ref() {
+                    NSEvent::removeMonitor(&local.monitor);
+                }
+                drop(global);
+                drop(local);
             });
         }
     }

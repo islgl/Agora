@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { open } from '@tauri-apps/plugin-dialog';
-import { FolderOpen } from 'lucide-react';
+import { FolderOpen, Monitor, Moon, Sun } from 'lucide-react';
+import { useTheme } from 'next-themes';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Toggle } from '@/components/ui/toggle';
@@ -8,6 +9,14 @@ import { useSettingsStore } from '@/store/settingsStore';
 import { SettingsPage } from './SettingsPage';
 import { SettingsSection } from './SettingsSection';
 import type { AutoTitleMode, GlobalSettings } from '@/types';
+
+type ThemeOption = 'light' | 'dark' | 'system';
+
+const THEME_OPTIONS: { value: ThemeOption; label: string; icon: React.ReactNode }[] = [
+  { value: 'light',  label: 'Light',  icon: <Sun  className="size-3.5" /> },
+  { value: 'dark',   label: 'Dark',   icon: <Moon className="size-3.5" /> },
+  { value: 'system', label: 'System', icon: <Monitor className="size-3.5" /> },
+];
 
 const AUTO_TITLE_OPTIONS: { value: AutoTitleMode; label: string; hint: string }[] = [
   {
@@ -31,6 +40,7 @@ export function GeneralForm() {
   const { globalSettings, backgroundStatus, saveGlobalSettings } = useSettingsStore();
   const [form, setForm] = useState<GlobalSettings>(globalSettings);
   const [saving, setSaving] = useState(false);
+  const { theme, setTheme } = useTheme();
 
   useEffect(() => {
     setForm(globalSettings);
@@ -41,7 +51,8 @@ export function GeneralForm() {
     form.workspaceRoot !== globalSettings.workspaceRoot ||
     form.autoApproveReadonly !== globalSettings.autoApproveReadonly ||
     form.quickLaunchEnabled !== globalSettings.quickLaunchEnabled ||
-    form.closeToTrayEnabled !== globalSettings.closeToTrayEnabled;
+    form.closeToTrayEnabled !== globalSettings.closeToTrayEnabled ||
+    form.nickname !== globalSettings.nickname;
 
   const pickWorkspace = async () => {
     try {
@@ -78,6 +89,52 @@ export function GeneralForm() {
         title="General"
         description="App-wide preferences for conversation titling, workspace scope, and read-only tool approvals."
       >
+        <SettingsSection
+          title="Appearance"
+          description="Color scheme for the interface. System follows your OS setting."
+        >
+          <div className="grid grid-cols-3 gap-2">
+            {THEME_OPTIONS.map((opt) => {
+              const active = theme === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setTheme(opt.value)}
+                  className={`px-3 py-2 rounded-xl text-center text-sm transition-colors flex items-center justify-center gap-1.5 ${
+                    active
+                      ? 'bg-primary/5 text-primary'
+                      : 'bg-card hover:bg-accent/40 text-foreground'
+                  }`}
+                  style={{
+                    boxShadow: active
+                      ? '0 0 0 1px color-mix(in oklab, var(--primary) 35%, transparent)'
+                      : '0 0 0 1px var(--border)',
+                  }}
+                >
+                  {opt.icon}
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        </SettingsSection>
+
+        <SettingsSection
+          title="Your name"
+          description="What Agora calls you."
+        >
+          <Input
+            value={form.nickname}
+            onChange={(e) => setForm((f) => ({ ...f, nickname: e.target.value }))}
+            placeholder="e.g. Alex"
+            spellCheck={false}
+            autoCorrect="off"
+            autoCapitalize="off"
+            className="h-9 rounded-xl text-xs max-w-xs"
+          />
+        </SettingsSection>
+
         <SettingsSection
           title="Conversation titles"
           description="How Agora names a chat in the sidebar. Renaming a conversation manually pins its title — auto-titling stops touching it from then on."
@@ -168,16 +225,6 @@ export function GeneralForm() {
                 {backgroundStatus?.quickLaunchMessage ??
                   'Background status will appear here after launch.'}
               </div>
-              {backgroundStatus && (
-                <div className="text-[11px] text-muted-foreground">
-                  Menu bar icon: {backgroundStatus.menubarReady ? 'Ready' : 'Unavailable'}
-                  {' · '}
-                  Listener: {backgroundStatus.quickLaunchActive ? 'Active' : 'Inactive'}
-                  {backgroundStatus.quickLaunchRequiresPermission
-                    ? ' · Permission may be required'
-                    : ''}
-                </div>
-              )}
             </div>
             <Toggle
               checked={form.quickLaunchEnabled}

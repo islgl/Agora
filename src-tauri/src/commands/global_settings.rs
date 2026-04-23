@@ -15,7 +15,7 @@ pub async fn load_global_settings(pool: State<'_, DbPool>) -> Result<GlobalSetti
                 embedding_provider, embedding_model, embedding_configs_json, \
                 base_url_embedding_common, \
                 auto_memory_enabled, quick_launch_enabled, close_to_tray_enabled, \
-                auto_dream_on_idle, dream_idle_minutes \
+                auto_dream_on_idle, dream_idle_minutes, nickname \
          FROM global_settings WHERE id = 1",
     )
     .fetch_one(&*pool)

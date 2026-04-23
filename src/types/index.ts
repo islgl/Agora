@@ -164,6 +164,9 @@ export interface GlobalSettings {
   /** Minutes of conversation idleness before the idle trigger fires.
    *  Ignored when `autoDreamOnIdle` is false. */
   dreamIdleMinutes: number;
+  /** Display name shown in the welcome greeting. Empty means no personalized
+   *  greeting is shown. */
+  nickname: string;
 }
 
 export interface BackgroundStatus {
@@ -315,6 +318,17 @@ export interface WikiPageContents {
   content: string;
   frontmatter: unknown;
   truncated: boolean;
+}
+
+/** Per-message search result returned by `search_messages`. The `snippet`
+ *  field uses U+0001 / U+0002 as start/end markers around matched terms. */
+export interface MessageSearchResult {
+  messageId: string;
+  conversationId: string;
+  conversationTitle: string;
+  role: string;
+  snippet: string;
+  createdAt: number;
 }
 
 export type TodoStatus = 'pending' | 'in_progress' | 'completed' | 'blocked';
