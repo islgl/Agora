@@ -32,9 +32,7 @@ pub struct AgentMdPayload {
 }
 
 #[tauri::command]
-pub async fn read_agent_md(
-    handles: State<'_, RuntimeHandles>,
-) -> Result<AgentMdPayload, String> {
+pub async fn read_agent_md(handles: State<'_, RuntimeHandles>) -> Result<AgentMdPayload, String> {
     let Some(root) = handles.builtins.workspace_root().await else {
         return Ok(AgentMdPayload::empty());
     };

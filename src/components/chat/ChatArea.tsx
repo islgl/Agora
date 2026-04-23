@@ -64,8 +64,8 @@ export function ChatArea() {
   }, [currentConversationId, loadMessages, loadTodos]);
 
   // Auto-dispatch any queued messages the moment a stream ends. The
-  // original design required manual ➤ so the user could see the
-  // assistant's last response before deciding whether the queued text
+  // original design required manually clicking send so the user could
+  // see the assistant's last response before deciding whether the queued text
   // still made sense; in practice that extra click is busywork — the
   // user typed the queued message on purpose, they want it delivered.
   // Auto-inject already handles the common case mid-turn; this covers
@@ -243,7 +243,7 @@ export function ChatArea() {
       .pendingQueue[currentConversationId]?.some((m) => m.id === msg.id);
     if (!stillQueued) return;
 
-    // Mid-stream click on ➤ = "stop and send as a new turn". Cancel
+    // Mid-stream click on send = "stop and send as a new turn". Cancel
     // the in-flight stream first so we don't run two concurrent
     // streams on the same conversation. `cancel` persists whatever
     // the assistant had produced, so nothing is lost — it just stops

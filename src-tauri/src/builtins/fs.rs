@@ -100,7 +100,11 @@ pub async fn glob(args: &Value, workspace_root: Option<&Path>) -> Result<String,
     .map_err(|e| format!("glob: walker panicked: {}", e))?;
 
     if matches.is_empty() {
-        return Ok(format!("No files matched `{}` under {}\n", pattern, root.display()));
+        return Ok(format!(
+            "No files matched `{}` under {}\n",
+            pattern,
+            root.display()
+        ));
     }
 
     let mut out = String::new();
@@ -471,19 +475,13 @@ fn resolve_path(raw: &str, workspace_root: Option<&Path>) -> Result<PathBuf, Str
     }
 }
 
-fn resolve_search_root(
-    args: &Value,
-    workspace_root: Option<&Path>,
-) -> Result<PathBuf, String> {
+fn resolve_search_root(args: &Value, workspace_root: Option<&Path>) -> Result<PathBuf, String> {
     if let Some(p) = args.get("path").and_then(Value::as_str) {
         return resolve_path(p, workspace_root);
     }
-    workspace_root
-        .map(Path::to_path_buf)
-        .ok_or_else(|| {
-            "no search path given and no workspace root set — configure one in Settings"
-                .to_string()
-        })
+    workspace_root.map(Path::to_path_buf).ok_or_else(|| {
+        "no search path given and no workspace root set — configure one in Settings".to_string()
+    })
 }
 
 #[cfg(test)]
@@ -505,7 +503,9 @@ mod tests {
     #[tokio::test]
     async fn read_file_numbers_lines() {
         let td = make_tree();
-        let out = read_file(&json!({ "path": "a.txt" }), Some(td.path())).await.unwrap();
+        let out = read_file(&json!({ "path": "a.txt" }), Some(td.path()))
+            .await
+            .unwrap();
         assert!(out.contains("     1\talpha"));
         assert!(out.contains("     3\tgamma"));
     }
@@ -526,14 +526,18 @@ mod tests {
 
     #[tokio::test]
     async fn read_file_rejects_relative_without_root() {
-        let err = read_file(&json!({ "path": "foo.txt" }), None).await.unwrap_err();
+        let err = read_file(&json!({ "path": "foo.txt" }), None)
+            .await
+            .unwrap_err();
         assert!(err.contains("workspace root"));
     }
 
     #[tokio::test]
     async fn glob_finds_files() {
         let td = make_tree();
-        let out = glob(&json!({ "pattern": "**/*.rs" }), Some(td.path())).await.unwrap();
+        let out = glob(&json!({ "pattern": "**/*.rs" }), Some(td.path()))
+            .await
+            .unwrap();
         assert!(out.contains("lib.rs"));
         assert!(!out.contains("a.txt"));
     }

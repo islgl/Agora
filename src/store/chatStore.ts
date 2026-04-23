@@ -20,8 +20,8 @@ export interface ActiveStream {
  *  (1) mid-stream auto-inject into a tool_result as a `<user-interrupt>`
  *  block (see `injectInterrupts`); (2) auto-dispatched as a new turn
  *  once the current stream finalizes (see ChatArea's stream-end
- *  effect); (3) user clicks ➤ to stop the current stream and dispatch
- *  immediately, or ✕ to discard. */
+ *  effect); (3) user clicks the send button to stop the current stream
+ *  and dispatch immediately, or the dismiss button to discard. */
 export interface QueuedMessage {
   id: string;
   content: string;
@@ -136,13 +136,13 @@ interface ChatState {
   /** Push a user message onto the conversation's pending queue. Returns the
    *  new message's id so callers can reference it (e.g., focus the chip). */
   enqueueMessage: (conversationId: string, content: string, files: File[]) => string;
-  /** Remove a single queued message by id (the chip's ✕). */
+  /** Remove a single queued message by id (the chip's dismiss button). */
   cancelQueuedMessage: (conversationId: string, id: string) => void;
   /** Drop the entire queue for a conversation (used on conversation delete). */
   clearQueue: (conversationId: string) => void;
   /** Drain text-only queued messages into a list for the interrupt-injection
    *  path (see `executeToolCall`). Messages with file attachments stay put —
-   *  they can't ride a text-only `tool_result` and need explicit ➤ dispatch.
+   *  they can't ride a text-only `tool_result` and need an explicit send click.
    *  Removes the drained entries from the queue atomically so repeated calls
    *  don't re-inject. */
   consumeQueueAsInterrupts: (conversationId: string) => QueuedMessage[];

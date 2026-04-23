@@ -20,6 +20,7 @@ import {
 } from '@/lib/background';
 import { mountWikiIngest, unmountWikiIngest } from '@/lib/ai/wiki-ingest';
 import { runDreaming, shouldRun as shouldRunDreaming } from '@/lib/ai/dreaming';
+import { useActivityStore } from '@/store/activityStore';
 import { toast } from 'sonner';
 import type { BackgroundStatus } from '@/types';
 
@@ -73,30 +74,43 @@ function MainAppShell() {
     return () => unmountWikiIngest();
   }, []);
 
-  // Phase 6 · Dreaming opportunistic trigger. On mount, check if a run
-  // is due (>20h since last run and local hour in the 2-6 window). We
-  // delay 60s so the user isn't hit with an LLM call the instant they
-  // open the app. The result lands silently in the Dream Inbox — no
-  // toast unless there was something to say.
+  // Phase 6 · Idle-triggered Dreaming. When the user has enabled the
+  // opt-in in Settings → Personalization, poll every ~30s: if the last
+  // conversation turn was more than `dreamIdleMinutes` ago AND the 20h
+  // rate-limit gate allows it, fire a Dreaming run. The gate itself
+  // prevents re-firing while the user keeps idling. Manual triggers
+  // (`run_dreaming` tool) bypass this effect entirely.
+  const autoDreamOnIdle = globalSettings.autoDreamOnIdle;
+  const dreamIdleMinutes = globalSettings.dreamIdleMinutes;
   useEffect(() => {
-    const timer = setTimeout(async () => {
+    if (!autoDreamOnIdle) return;
+    const idleMs = Math.max(1, dreamIdleMinutes) * 60_000;
+    let inFlight = false;
+    const tick = async () => {
+      if (inFlight) return;
+      const since = Date.now() - useActivityStore.getState().lastActivityAt;
+      if (since < idleMs) return;
+      inFlight = true;
       try {
         if (!(await shouldRunDreaming())) return;
         const dream = await runDreaming();
-        if (dream && dream.candidates.length > 0) {
+        if (dream && dream.applied > 0) {
           toast.message(
-            `🌙 Dreaming distilled ${dream.candidates.length} candidate memories for ${dream.date}`,
+            `Agora remembered ${dream.applied} thing${dream.applied === 1 ? '' : 's'}`,
             {
-              description: 'Review in Settings → Dreams to accept or discard.',
+              description: 'Check Settings → Personalization if anything looks wrong.',
             },
           );
         }
       } catch (err) {
-        console.warn('Dreaming auto-run failed', err);
+        console.warn('Dreaming idle-run failed', err);
+      } finally {
+        inFlight = false;
       }
-    }, 60_000);
-    return () => clearTimeout(timer);
-  }, []);
+    };
+    const id = window.setInterval(() => void tick(), 30_000);
+    return () => window.clearInterval(id);
+  }, [autoDreamOnIdle, dreamIdleMinutes]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

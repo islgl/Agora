@@ -17,13 +17,12 @@ pub async fn search_conversations(
 
     // Title match — simple LIKE, case-insensitive via LOWER.
     let like = format!("%{}%", trimmed.to_lowercase());
-    let mut matched: Vec<String> = sqlx::query_scalar(
-        "SELECT id FROM conversations WHERE LOWER(title) LIKE ?",
-    )
-    .bind(&like)
-    .fetch_all(&*pool)
-    .await
-    .map_err(|e| e.to_string())?;
+    let mut matched: Vec<String> =
+        sqlx::query_scalar("SELECT id FROM conversations WHERE LOWER(title) LIKE ?")
+            .bind(&like)
+            .fetch_all(&*pool)
+            .await
+            .map_err(|e| e.to_string())?;
 
     // Body match — FTS5 with prefix search so "hell" matches "hello".
     let fts_query = escape_fts_query(trimmed);

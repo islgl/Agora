@@ -20,20 +20,15 @@ pub async fn share_conversation(
     pool: State<'_, DbPool>,
     conversation_id: String,
 ) -> Result<(), String> {
-    let markdown = crate::commands::export::render_conversation_markdown(
-        &pool,
-        &conversation_id,
-    )
-    .await?;
+    let markdown =
+        crate::commands::export::render_conversation_markdown(&pool, &conversation_id).await?;
 
-    let title: String = sqlx::query_scalar(
-        "SELECT title FROM conversations WHERE id = ?",
-    )
-    .bind(&conversation_id)
-    .fetch_optional(&*pool)
-    .await
-    .map_err(|e| e.to_string())?
-    .unwrap_or_else(|| "conversation".into());
+    let title: String = sqlx::query_scalar("SELECT title FROM conversations WHERE id = ?")
+        .bind(&conversation_id)
+        .fetch_optional(&*pool)
+        .await
+        .map_err(|e| e.to_string())?
+        .unwrap_or_else(|| "conversation".into());
 
     let file_path = write_temp_markdown(&title, &markdown)?;
     share_file(&app, file_path).await
@@ -53,7 +48,11 @@ fn write_temp_markdown(title: &str, markdown: &str) -> Result<PathBuf, String> {
         })
         .collect::<String>();
     let trimmed: String = safe_title.trim().chars().take(40).collect();
-    let base = if trimmed.is_empty() { "conversation" } else { trimmed.as_str() };
+    let base = if trimmed.is_empty() {
+        "conversation"
+    } else {
+        trimmed.as_str()
+    };
     let filename = format!("agora-{}-{}.md", base, Uuid::new_v4().simple());
     let path = std::env::temp_dir().join(filename);
     std::fs::write(&path, markdown).map_err(|e| format!("write failed: {}", e))?;
@@ -95,21 +94,15 @@ mod mac {
     };
 
     pub unsafe fn present_share_picker_for_file(path: &Path) -> Result<(), String> {
-        let mtm = MainThreadMarker::new()
-            .ok_or("share must run on the main thread")?;
+        let mtm = MainThreadMarker::new().ok_or("share must run on the main thread")?;
 
-        let path_str = path
-            .to_str()
-            .ok_or("path is not valid UTF-8")?;
+        let path_str = path.to_str().ok_or("path is not valid UTF-8")?;
         let ns_path = NSString::from_str(path_str);
         let url = NSURL::fileURLWithPath(&ns_path);
         let any: Retained<AnyObject> = Retained::cast_unchecked(url);
         let items = NSArray::from_retained_slice(&[any]);
 
-        let picker = NSSharingServicePicker::initWithItems(
-            NSSharingServicePicker::alloc(),
-            &items,
-        );
+        let picker = NSSharingServicePicker::initWithItems(NSSharingServicePicker::alloc(), &items);
 
         let app = NSApplication::sharedApplication(mtm);
         let window = app

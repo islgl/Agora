@@ -3,18 +3,20 @@ import { generateText } from 'ai';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useBrandStore } from '@/store/brandStore';
 import { modelForConfig } from './providers';
+import { formatTaxonomy } from './brand-taxonomy';
 
 /**
  * Phase 6 · Dreaming.
  *
  * Reads yesterday's conversation log + the current MEMORY.md, asks the
  * active model to distill candidate memories worth preserving, and
- * writes the result to ~/.agora/dreams/YYYY-MM-DD.json for the user
- * to accept or reject via Settings → Dreams.
+ * appends each one to the right Brand file. Post-hoc review: the user
+ * spots anything they don't like in Settings → Personalization and
+ * deletes it there — same shape as ChatGPT / Claude / Gemini memory.
  *
- * The heuristic is intentionally conservative — false positives (things
- * that look like memories but aren't) are much worse than false
- * negatives (missed memories the user can add later by hand).
+ * The heuristic is intentionally conservative — false positives are
+ * worse than false negatives, but since everything is auditable + one
+ * click to remove, we no longer gate writes behind a manual accept step.
  */
 
 export type DreamTarget = 'USER' | 'TOOLS' | 'SOUL' | 'MEMORY';
@@ -22,35 +24,54 @@ export type DreamTarget = 'USER' | 'TOOLS' | 'SOUL' | 'MEMORY';
 export interface DreamCandidate {
   target: DreamTarget;
   content: string;
+  /** Verbatim snippet from the conversation log that justifies this
+   *  candidate. Used by the grounded-rehydration check before write:
+   *  if the quote isn't present in the log, the candidate is dropped. */
+  sourceQuote: string;
   justification?: string;
 }
 
-export interface DreamFile {
+export interface DreamRunResult {
   date: string;
+  applied: number;
+  skipped: number;
   candidates: DreamCandidate[];
-  trimmedMemoryMd?: string;
-  generatedAt: number;
 }
 
-/** Trigger a Dreaming run for the given date (YYYY-MM-DD; default = yesterday).
- *  Returns the produced DreamFile, or null when there's nothing to distill. */
-export async function runDreaming(date?: string): Promise<DreamFile | null> {
-  const target = date ?? yesterdayIsoDate();
-
+/** Trigger a Dreaming run.
+ *
+ *  - No `date` → distill everything since the last Dreaming run (or the
+ *    last 24h, if it's never run). Used by the idle trigger.
+ *  - `date` given (YYYY-MM-DD) → distill just that day's log. Used by
+ *    the `run_dreaming` tool when a model/user asks to reprocess a
+ *    specific day.
+ *
+ *  Returns a summary of what landed, or null when there's nothing to
+ *  distill. */
+export async function runDreaming(
+  date?: string,
+): Promise<DreamRunResult | null> {
   const settings = useSettingsStore.getState();
   const modelConfig = settings.modelConfigs.find(
     (m) => m.id === settings.activeModelId,
   );
   if (!modelConfig) {
-    throw new Error('No active model configured; configure one in Settings → Models first.');
+    throw new Error(
+      'No active model configured; configure one in Settings → Models first.',
+    );
   }
   if (!settings.globalSettings.apiKey.trim()) {
     throw new Error('No API key set; add one in Settings → Providers first.');
   }
 
-  const logResp = await invoke<{ date: string; content: string }>('read_daily_log', {
-    date: target,
-  });
+  const logResp = date
+    ? await invoke<{ date: string; content: string }>('read_daily_log', {
+        date,
+      })
+    : await invoke<{ date: string; content: string }>(
+        'read_daily_logs_since_last_dreaming',
+      );
+  const target = date ?? logResp.date;
   if (!logResp.content.trim()) {
     return null;
   }
@@ -65,14 +86,11 @@ export async function runDreaming(date?: string): Promise<DreamFile | null> {
     'Three rules:',
     '1. Candidates must be durable — preferences, stable facts, project state that outlives the day. NOT one-off answers, code, or conversational filler.',
     '2. Route each candidate to a target file:',
-    '   - USER: identity, timezone, role',
-    '   - TOOLS: tech stack, tooling preferences',
-    '   - SOUL: communication / style preferences',
-    '   - MEMORY: everything else durable',
-    '3. Optionally propose a trimmed version of MEMORY.md — only if it has obvious duplication / stale entries. Leave trimmedMemoryMd out otherwise.',
+    formatTaxonomy({ indent: '   ' }),
+    '3. Every candidate MUST include a `sourceQuote` — a VERBATIM substring (8-200 chars) copied directly from the Conversation log below. No paraphrasing, no translation, no cross-turn stitching. If you cannot point to a single continuous quote that justifies the candidate, DROP it.',
     '',
     'Return JSON ONLY, matching this shape:',
-    '{"candidates": [{"target":"USER|TOOLS|SOUL|MEMORY","content":"...","justification":"..."}], "trimmedMemoryMd":"..."}',
+    '{"candidates": [{"target":"USER|TOOLS|SOUL|MEMORY","content":"...","sourceQuote":"...","justification":"..."}]}',
     '',
     'Current MEMORY.md:',
     memoryMd || '(empty)',
@@ -88,49 +106,42 @@ export async function runDreaming(date?: string): Promise<DreamFile | null> {
     maxOutputTokens: 2000,
   });
 
-  const parsed = parseDream(result.text);
-  if (!parsed) {
+  const candidates = parseDream(result.text);
+  if (!candidates) {
     throw new Error('Dreaming output was not valid JSON');
   }
 
-  const dream: DreamFile = {
-    date: target,
-    candidates: parsed.candidates,
-    trimmedMemoryMd: parsed.trimmedMemoryMd,
-    generatedAt: Math.floor(Date.now() / 1000),
-  };
+  const normalizedLog = normalizeForGround(logResp.content);
 
-  await invoke('write_dream', { dream });
+  let applied = 0;
+  let skipped = 0;
+  for (const cand of candidates) {
+    if (!isGrounded(cand.sourceQuote, normalizedLog)) {
+      skipped += 1;
+      console.info('dreaming: skipped candidate (ungrounded)', cand);
+      continue;
+    }
+    try {
+      const res = await invoke<{ written: boolean; reason: string | null }>(
+        'append_to_memory',
+        { file: `${cand.target}.md`, content: cand.content },
+      );
+      if (res.written) {
+        applied += 1;
+      } else {
+        skipped += 1;
+        console.info('dreaming: skipped candidate', cand, res.reason);
+      }
+    } catch (err) {
+      skipped += 1;
+      console.warn('dreaming: append_to_memory failed', err);
+    }
+  }
+
+  await useBrandStore.getState().refresh();
   await invoke('mark_dreaming_ran');
-  return dream;
-}
 
-/** Accept one candidate — writes it into the appropriate Brand file via
- *  `append_to_memory`. Returns the result object so the caller can pair
- *  it with a toast. */
-export async function acceptCandidate(c: DreamCandidate): Promise<{
-  written: boolean;
-  file: string;
-  reason: string | null;
-}> {
-  const file = `${c.target}.md`;
-  return invoke('append_to_memory', {
-    file,
-    content: c.content,
-    section: undefined,
-  });
-}
-
-export async function discardDream(date: string): Promise<boolean> {
-  return invoke<boolean>('discard_dream', { date });
-}
-
-export async function listDreamDates(): Promise<string[]> {
-  return invoke<string[]>('list_dream_dates');
-}
-
-export async function readDream(date: string): Promise<DreamFile | null> {
-  return invoke<DreamFile | null>('read_dream', { date });
+  return { date: target, applied, skipped, candidates };
 }
 
 /** Check whether the scheduler thinks Dreaming should auto-run right now. */
@@ -143,50 +154,49 @@ export async function shouldRun(): Promise<boolean> {
   }
 }
 
-function parseDream(raw: string): {
-  candidates: DreamCandidate[];
-  trimmedMemoryMd?: string;
-} | null {
+function parseDream(raw: string): DreamCandidate[] | null {
   const match = raw.match(/\{[\s\S]*\}/);
   if (!match) return null;
   try {
-    const parsed = JSON.parse(match[0]) as {
-      candidates?: unknown;
-      trimmedMemoryMd?: unknown;
-    };
-    const cands = Array.isArray(parsed.candidates)
-      ? parsed.candidates.flatMap((c): DreamCandidate[] => {
-          if (!c || typeof c !== 'object') return [];
-          const r = c as Record<string, unknown>;
-          const target = typeof r.target === 'string' ? r.target.toUpperCase() : '';
-          const content = typeof r.content === 'string' ? r.content.trim() : '';
-          const just =
-            typeof r.justification === 'string' ? r.justification.trim() : '';
-          if (!['USER', 'TOOLS', 'SOUL', 'MEMORY'].includes(target)) return [];
-          if (!content) return [];
-          return [
-            {
-              target: target as DreamTarget,
-              content,
-              justification: just || undefined,
-            },
-          ];
-        })
-      : [];
-    return {
-      candidates: cands,
-      trimmedMemoryMd:
-        typeof parsed.trimmedMemoryMd === 'string'
-          ? parsed.trimmedMemoryMd
-          : undefined,
-    };
+    const parsed = JSON.parse(match[0]) as { candidates?: unknown };
+    if (!Array.isArray(parsed.candidates)) return [];
+    return parsed.candidates.flatMap((c): DreamCandidate[] => {
+      if (!c || typeof c !== 'object') return [];
+      const r = c as Record<string, unknown>;
+      const target = typeof r.target === 'string' ? r.target.toUpperCase() : '';
+      const content = typeof r.content === 'string' ? r.content.trim() : '';
+      const sourceQuote =
+        typeof r.sourceQuote === 'string' ? r.sourceQuote.trim() : '';
+      const just =
+        typeof r.justification === 'string' ? r.justification.trim() : '';
+      if (!['USER', 'TOOLS', 'SOUL', 'MEMORY'].includes(target)) return [];
+      if (!content) return [];
+      if (!sourceQuote) return [];
+      return [
+        {
+          target: target as DreamTarget,
+          content,
+          sourceQuote,
+          justification: just || undefined,
+        },
+      ];
+    });
   } catch {
     return null;
   }
 }
 
-function yesterdayIsoDate(): string {
-  const d = new Date();
-  d.setUTCDate(d.getUTCDate() - 1);
-  return d.toISOString().slice(0, 10);
+/** Collapse whitespace + lowercase so small formatting differences
+ *  (newlines, double spaces, capitalization) don't break grounding. */
+function normalizeForGround(text: string): string {
+  return text.replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+/** True when the normalized quote appears as a substring of the
+ *  normalized log. Quotes shorter than 8 chars are rejected — they're
+ *  too likely to match incidentally and defeat the check. */
+function isGrounded(quote: string, normalizedLog: string): boolean {
+  const normalized = normalizeForGround(quote);
+  if (normalized.length < 8) return false;
+  return normalizedLog.includes(normalized);
 }

@@ -31,10 +31,7 @@ pub async fn test_model_config(model_config: ModelConfig) -> Result<String, Stri
 }
 
 async fn test_openai(cfg: &ModelConfig) -> Result<String, String> {
-    let url = format!(
-        "{}/chat/completions",
-        cfg.base_url.trim_end_matches('/')
-    );
+    let url = format!("{}/chat/completions", cfg.base_url.trim_end_matches('/'));
     let body = json!({
         "model": cfg.model,
         "messages": [{ "role": "user", "content": "hi" }],

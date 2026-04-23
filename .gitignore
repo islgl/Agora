@@ -4,6 +4,9 @@ dist
 dist-ssr
 *.local
 
+# TypeScript incremental build info
+*.tsbuildinfo
+
 # Logs
 logs
 *.log

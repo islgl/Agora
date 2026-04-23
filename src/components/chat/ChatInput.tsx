@@ -40,8 +40,8 @@ export function ChatInput({
     if (!text.trim() && files.length === 0) return;
 
     // Stream in flight → park the raw payload on the queue and clear the
-    // composer. The QueuedChips row above renders a ➤ button to send each
-    // one once the user has seen the assistant's response.
+    // composer. The QueuedChips row above renders a send button to send
+    // each one once the user has seen the assistant's response.
     if (isStreaming) {
       if (onEnqueue) {
         onEnqueue(text, files);
@@ -103,7 +103,7 @@ export function ChatInput({
         />
         <p className="text-xs text-muted-foreground text-center mt-2.5">
           {isStreaming && onEnqueue
-            ? 'Press Enter to queue a follow-up — it stays pending until you click ➤.'
+            ? 'Press Enter to queue a follow-up — it stays pending until you send it.'
             : 'AI can make mistakes. Verify important information.'}
         </p>
       </div>

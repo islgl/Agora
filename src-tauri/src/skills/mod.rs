@@ -57,11 +57,7 @@ impl SkillRegistry {
         let mut read_dir = fs::read_dir(&root_path)
             .await
             .map_err(|e| format!("read_dir failed: {}", e))?;
-        while let Some(entry) = read_dir
-            .next_entry()
-            .await
-            .map_err(|e| e.to_string())?
-        {
+        while let Some(entry) = read_dir.next_entry().await.map_err(|e| e.to_string())? {
             let path = entry.path();
             if !path.is_dir() {
                 continue;
@@ -159,7 +155,9 @@ impl SkillRegistry {
         for s in &inner.skills {
             out.push_str(&format!("- **{}**: {}\n", s.name, s.description));
         }
-        out.push_str("\nUse `read_skill(name)` to load a skill's full instructions before acting on it.\n");
+        out.push_str(
+            "\nUse `read_skill(name)` to load a skill's full instructions before acting on it.\n",
+        );
         Some(out)
     }
 
@@ -251,9 +249,17 @@ impl SkillRegistry {
             .input
             .get("args")
             .and_then(Value::as_array)
-            .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(String::from))
+                    .collect()
+            })
             .unwrap_or_default();
-        let stdin = call.input.get("stdin").and_then(Value::as_str).map(String::from);
+        let stdin = call
+            .input
+            .get("stdin")
+            .and_then(Value::as_str)
+            .map(String::from);
 
         match runtime::run_script(&skill_path, script, &args, stdin).await {
             Ok(output) => ToolResult {

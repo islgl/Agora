@@ -93,10 +93,7 @@ pub async fn list_raw_files(app: AppHandle) -> Result<Vec<RawFile>, String> {
 }
 
 #[tauri::command]
-pub async fn extract_raw_text(
-    app: AppHandle,
-    rel_path: String,
-) -> Result<ExtractedText, String> {
+pub async fn extract_raw_text(app: AppHandle, rel_path: String) -> Result<ExtractedText, String> {
     let root = paths::raw_dir(&app)?;
     let safe = sanitize_rel(&rel_path)?;
     let full = root.join(&safe);
@@ -120,10 +117,7 @@ fn extract_file(path: &Path, rel: &str) -> Result<ExtractedText, String> {
             pdf_extract::extract_text(path)
                 .map_err(|e| format!("pdf-extract failed for {}: {e}", path.display()))?,
         ),
-        "html" | "htm" => (
-            "html".to_string(),
-            strip_html(&read_text_file(path)?),
-        ),
+        "html" | "htm" => ("html".to_string(), strip_html(&read_text_file(path)?)),
         other => {
             return Err(format!(
                 "unsupported format: .{other} (supported: md, txt, pdf, html)",
@@ -161,20 +155,18 @@ fn strip_html(html: &str) -> String {
         once_cell::sync::Lazy::new(|| regex::Regex::new(r"\s+").unwrap());
     // Ignore <script> and <style> blocks entirely. Rust's regex crate
     // has no backreferences, so we run two passes rather than one.
-    static SCRIPT_RE: once_cell::sync::Lazy<regex::Regex> =
-        once_cell::sync::Lazy::new(|| {
-            regex::RegexBuilder::new(r"<script[^>]*>[\s\S]*?</script>")
-                .case_insensitive(true)
-                .build()
-                .unwrap()
-        });
-    static STYLE_RE: once_cell::sync::Lazy<regex::Regex> =
-        once_cell::sync::Lazy::new(|| {
-            regex::RegexBuilder::new(r"<style[^>]*>[\s\S]*?</style>")
-                .case_insensitive(true)
-                .build()
-                .unwrap()
-        });
+    static SCRIPT_RE: once_cell::sync::Lazy<regex::Regex> = once_cell::sync::Lazy::new(|| {
+        regex::RegexBuilder::new(r"<script[^>]*>[\s\S]*?</script>")
+            .case_insensitive(true)
+            .build()
+            .unwrap()
+    });
+    static STYLE_RE: once_cell::sync::Lazy<regex::Regex> = once_cell::sync::Lazy::new(|| {
+        regex::RegexBuilder::new(r"<style[^>]*>[\s\S]*?</style>")
+            .case_insensitive(true)
+            .build()
+            .unwrap()
+    });
     let cleaned = SCRIPT_RE.replace_all(html, " ");
     let cleaned = STYLE_RE.replace_all(&cleaned, " ");
     let no_tags = TAG_RE.replace_all(&cleaned, " ");
@@ -218,7 +210,10 @@ fn sanitize_rel(rel: &str) -> Result<PathBuf, String> {
     }
     for comp in path.components() {
         use std::path::Component;
-        if matches!(comp, Component::ParentDir | Component::RootDir | Component::Prefix(_)) {
+        if matches!(
+            comp,
+            Component::ParentDir | Component::RootDir | Component::Prefix(_)
+        ) {
             return Err(format!("rel_path escapes raw root: {rel}"));
         }
     }

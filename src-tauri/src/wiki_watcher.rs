@@ -124,10 +124,7 @@ async fn run(app: Arc<AppHandle>, raw_dir: PathBuf) -> Result<(), String> {
 }
 
 fn is_ingest_event(kind: &EventKind) -> bool {
-    matches!(
-        kind,
-        EventKind::Create(_) | EventKind::Modify(_)
-    )
+    matches!(kind, EventKind::Create(_) | EventKind::Modify(_))
 }
 
 fn is_hidden(path: &Path) -> bool {

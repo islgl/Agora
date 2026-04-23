@@ -157,6 +157,13 @@ export interface GlobalSettings {
   /** When true, closing the main window hides it to the tray instead of
    *  letting the default close behaviour quit the app. */
   closeToTrayEnabled: boolean;
+  /** When true, Dreaming auto-fires after `dreamIdleMinutes` minutes of
+   *  conversation inactivity. Opt-in, default false. Manual/tool-based
+   *  triggers work regardless of this flag. */
+  autoDreamOnIdle: boolean;
+  /** Minutes of conversation idleness before the idle trigger fires.
+   *  Ignored when `autoDreamOnIdle` is false. */
+  dreamIdleMinutes: number;
 }
 
 export interface BackgroundStatus {

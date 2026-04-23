@@ -78,8 +78,6 @@ pub async fn delete_auto_memory(
 }
 
 #[tauri::command]
-pub async fn clear_auto_memory(
-    handles: State<'_, RuntimeHandles>,
-) -> Result<u64, String> {
+pub async fn clear_auto_memory(handles: State<'_, RuntimeHandles>) -> Result<u64, String> {
     handles.memory.clear().await
 }

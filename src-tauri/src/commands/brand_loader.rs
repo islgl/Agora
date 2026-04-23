@@ -25,13 +25,7 @@ use crate::state::RuntimeHandles;
 
 const MAX_BYTES: usize = 64 * 1024;
 
-pub const BRAND_FILES: &[&str] = &[
-    "SOUL.md",
-    "USER.md",
-    "TOOLS.md",
-    "MEMORY.md",
-    "AGENTS.md",
-];
+pub const BRAND_FILES: &[&str] = &["SOUL.md", "USER.md", "TOOLS.md", "MEMORY.md", "AGENTS.md"];
 
 const DEFAULT_SOUL_MD: &str = include_str!("../../templates/SOUL.md");
 const DEFAULT_AGENTS_MD: &str = include_str!("../../templates/AGENTS.md");
@@ -69,10 +63,7 @@ pub async fn read_brand(app: AppHandle) -> Result<BrandPayload, String> {
 /// read-only `AGENTS.md` for viewing. `write_brand_file` is the write side
 /// and still refuses AGENTS.md.
 #[tauri::command]
-pub async fn read_brand_file(
-    app: AppHandle,
-    file: String,
-) -> Result<BrandSection, String> {
+pub async fn read_brand_file(app: AppHandle, file: String) -> Result<BrandSection, String> {
     if !BRAND_FILES.contains(&file.as_str()) {
         return Err(format!("unknown brand file: {file}"));
     }
@@ -86,11 +77,7 @@ pub async fn read_brand_file(
 /// a user really wants to hand-edit it they can do so on disk. Keeping the
 /// UI read-only avoids accidental deletion of the safety rules.
 #[tauri::command]
-pub async fn write_brand_file(
-    app: AppHandle,
-    file: String,
-    content: String,
-) -> Result<(), String> {
+pub async fn write_brand_file(app: AppHandle, file: String, content: String) -> Result<(), String> {
     if !BRAND_FILES.contains(&file.as_str()) {
         return Err(format!("unknown brand file: {file}"));
     }
@@ -134,7 +121,11 @@ fn load_file(path: &Path) -> BrandSection {
         Err(_) => return BrandSection::default(),
     };
     let truncated = bytes.len() > MAX_BYTES;
-    let slice = if truncated { &bytes[..MAX_BYTES] } else { &bytes[..] };
+    let slice = if truncated {
+        &bytes[..MAX_BYTES]
+    } else {
+        &bytes[..]
+    };
     let content = String::from_utf8_lossy(slice).trim().to_string();
     BrandSection {
         path: Some(path.to_string_lossy().into_owned()),

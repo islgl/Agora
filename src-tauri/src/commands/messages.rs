@@ -13,14 +13,13 @@ pub async fn load_messages(
     pool: State<'_, DbPool>,
     conversation_id: String,
 ) -> Result<Vec<Message>, String> {
-    let leaf_opt: Option<String> = sqlx::query_scalar(
-        "SELECT active_leaf_id FROM conversations WHERE id = ?",
-    )
-    .bind(&conversation_id)
-    .fetch_optional(&*pool)
-    .await
-    .map_err(|e| e.to_string())?
-    .flatten();
+    let leaf_opt: Option<String> =
+        sqlx::query_scalar("SELECT active_leaf_id FROM conversations WHERE id = ?")
+            .bind(&conversation_id)
+            .fetch_optional(&*pool)
+            .await
+            .map_err(|e| e.to_string())?
+            .flatten();
 
     // Fetch every row for the conversation in one go — we need both the active
     // path and the sibling metadata, and a single pass is simpler than many.
@@ -76,7 +75,10 @@ pub async fn load_messages(
     let mut buckets: HashMap<(Option<String>, String), Vec<(String, i64)>> = HashMap::new();
     for r in &all_rows {
         let key = (r.parent_id.clone(), format!("{:?}", r.role));
-        buckets.entry(key).or_default().push((r.id.clone(), r.created_at));
+        buckets
+            .entry(key)
+            .or_default()
+            .push((r.id.clone(), r.created_at));
     }
     for v in buckets.values_mut() {
         v.sort_by_key(|(_, ts)| *ts);
@@ -91,7 +93,11 @@ pub async fn load_messages(
         let (idx, total, prev, next) = match sibs {
             Some(list) => {
                 let pos = list.iter().position(|(sid, _)| sid == id).unwrap_or(0);
-                let prev = if pos > 0 { Some(list[pos - 1].0.clone()) } else { None };
+                let prev = if pos > 0 {
+                    Some(list[pos - 1].0.clone())
+                } else {
+                    None
+                };
                 let next = list.get(pos + 1).map(|(sid, _)| sid.clone());
                 (pos as u32, list.len() as u32, prev, next)
             }
@@ -143,4 +149,3 @@ pub async fn save_message(pool: State<'_, DbPool>, message: Message) -> Result<(
     .map_err(|e| e.to_string())?;
     Ok(())
 }
-

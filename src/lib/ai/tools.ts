@@ -24,6 +24,7 @@ import {
   type SubagentSnapshot,
 } from '@/lib/ai/subagent';
 import { requestAskUser } from '@/lib/ai/ask-user-broker';
+import { formatTaxonomy } from '@/lib/ai/brand-taxonomy';
 
 /**
  * Bridge between the Vercel AI SDK and the Rust-owned tool runtimes
@@ -109,9 +110,6 @@ const SUBAGENT_BLOCKLIST = new Set([
   // Dreaming is a main-conversation workflow. Subagents don't run
   // dreaming or curate its output.
   'run_dreaming',
-  'list_dreams',
-  'read_dream',
-  'discard_dream',
   // Brand Layer writes are user-identity edits — subagents never touch
   // them. Reads stay available so an investigation can reference the
   // user's preferences without triggering a write path.
@@ -204,13 +202,10 @@ export async function loadFrontendTools(
   set['list_auto_memories'] = listAutoMemoriesTool();
   set['delete_auto_memory'] = deleteAutoMemoryTool();
 
-  // Dreaming · run the nightly distillation, list past runs, read
-  // candidates, archive. Accepting a candidate goes through the
-  // existing append_brand_file tool (no dedicated accept command).
+  // Dreaming · run the nightly distillation, which auto-appends
+  // candidates to the right Brand files. Review/undo happens in
+  // Settings → Personalization, not through a tool.
   set['run_dreaming'] = runDreamingTool();
-  set['list_dreams'] = listDreamsTool();
-  set['read_dream'] = readDreamTool();
-  set['discard_dream'] = discardDreamTool();
 
   // Mode-transition tools are runtime-gated too: we expose both
   // regardless of starting mode so a mid-turn switch can still see the
@@ -505,10 +500,8 @@ function appendBrandFileTool() {
       'something, or when you have high confidence that a fact from the ' +
       'current turn should persist across future conversations. Pick ' +
       '`file`:\n' +
-      '- USER.md: identity, name, title, timezone, ways to address them\n' +
-      '- TOOLS.md: tech stack, tooling preferences, CLI/editor/env choices\n' +
-      '- SOUL.md: communication / tone preferences ("be more concise")\n' +
-      '- MEMORY.md: everything else worth long-term recall\n' +
+      formatTaxonomy({ suffix: '.md' }) +
+      '\n' +
       'Write one compact line; exact duplicates are silently deduplicated. ' +
       'Do NOT persist secrets (API keys, passwords, tokens) — the writer ' +
       'refuses and returns a reason. AGENTS.md is not writable through ' +
@@ -570,7 +563,7 @@ async function executeAppendBrandFile(
 
     void useBrandStore.getState().refresh();
     const display = content.length > 60 ? content.slice(0, 57) + '…' : content;
-    toast.success(`✓ Appended to ${name}: ${display}`);
+    toast.success(`Appended to ${name}: ${display}`);
     return `Appended to ${name}: "${content}"${section ? ` (under "${section}")` : ''}.`;
   } catch (err) {
     return { error: `append_brand_file failed: ${String(err)}` };
@@ -621,7 +614,7 @@ async function executeReplaceBrandFile(
   try {
     await invoke('write_brand_file', { file: name, content });
     void useBrandStore.getState().refresh();
-    toast.success(`✓ Replaced ${name} (${content.length} chars)`);
+    toast.success(`Replaced ${name} (${content.length} chars)`);
     return `Replaced ${name} with ${content.length} characters.`;
   } catch (err) {
     return { error: `replace_brand_file failed: ${String(err)}` };
@@ -672,7 +665,7 @@ async function executeDeleteBrandLine(
       return `No line matching "${line.slice(0, 80)}" found in ${name}.`;
     }
     void useBrandStore.getState().refresh();
-    toast.success(`✓ Removed a line from ${name}`);
+    toast.success(`Removed a line from ${name}`);
     return `Removed line from ${name}.`;
   } catch (err) {
     return { error: `delete_brand_line failed: ${String(err)}` };
@@ -922,7 +915,7 @@ function listRawFilesTool() {
  * remember the path.
  */
 function openAgoraFolderTool() {
-  const allowed = ['', 'config', 'wiki', 'raw', 'logs', 'dreams', 'skills', 'workspace'];
+  const allowed = ['', 'config', 'wiki', 'raw', 'logs', 'skills', 'workspace'];
   return tool({
     description:
       'Open one of the Agora subdirectories in the user\'s file ' +
@@ -930,7 +923,7 @@ function openAgoraFolderTool() {
       "wants to inspect files on disk — e.g. to drop a document into " +
       "`raw`, or view the generated pages in `wiki`. Pass `subdir` as " +
       "one of: '' (the agora root), 'config', 'wiki', 'raw', 'logs', " +
-      "'dreams', 'skills', 'workspace'.",
+      "'skills', 'workspace'.",
     inputSchema: jsonSchema({
       type: 'object',
       properties: {
@@ -1033,7 +1026,7 @@ function deleteAutoMemoryTool() {
       try {
         const removed = await invoke<boolean>('delete_auto_memory', { id: r.id });
         if (removed) {
-          toast.success('✓ Forgot that auto memory');
+          toast.success('Forgot that auto memory');
           return `Deleted auto memory ${r.id}.`;
         }
         return `No auto memory with id ${r.id}.`;
@@ -1046,35 +1039,23 @@ function deleteAutoMemoryTool() {
 
 /* ─── Dreaming (user-conversation tools) ──────────────────── */
 
-interface DreamCandidate {
-  target: 'USER' | 'TOOLS' | 'SOUL' | 'MEMORY';
-  content: string;
-  justification?: string;
-}
-
-interface DreamFile {
-  date: string;
-  candidates: DreamCandidate[];
-  trimmedMemoryMd?: string;
-  generatedAt: number;
-}
-
 function runDreamingTool() {
   return tool({
     description:
-      "Trigger a Dreaming pass — read a day's conversation log, ask the " +
-      'model to distill candidate long-term memories, save the proposal ' +
-      'to ~/.agora/dreams/. Defaults to yesterday (UTC). After this ' +
-      'returns, present the candidates to the user one by one and let ' +
-      'them choose which to save (via `append_brand_file`). When done, ' +
-      'call `discard_dream` to archive the dream file.',
+      'Trigger a Dreaming pass — read conversation log entries, ask the ' +
+      'model to distill durable memories, and append each to the right ' +
+      'Brand file (USER/TOOLS/SOUL/MEMORY) automatically. Defaults to ' +
+      'everything since the last Dreaming run (or the last 24h if it has ' +
+      "never run). Returns a summary of how many landed; the user " +
+      'reviews and prunes in Settings → Personalization if anything ' +
+      'looks off.',
     inputSchema: jsonSchema({
       type: 'object',
       properties: {
         date: {
           type: 'string',
           description:
-            'Target date in YYYY-MM-DD. Omit for yesterday. Useful when a past day had a rich conversation worth revisiting.',
+            'Optional target date in YYYY-MM-DD to reprocess that single day. Omit for the default "since last run" behaviour.',
         },
       },
     }),
@@ -1084,90 +1065,22 @@ function runDreamingTool() {
         const { runDreaming } = await import('@/lib/ai/dreaming');
         const dream = await runDreaming(r.date?.trim() || undefined);
         if (!dream) {
-          return `No conversation log for ${r.date ?? 'yesterday'} — nothing to distill.`;
+          return r.date
+            ? `No conversation log for ${r.date} — nothing to distill.`
+            : 'No new conversation content since the last Dreaming run — nothing to distill.';
         }
-        return JSON.stringify(dream, null, 2);
+        return JSON.stringify(
+          {
+            date: dream.date,
+            applied: dream.applied,
+            skipped: dream.skipped,
+            candidates: dream.candidates,
+          },
+          null,
+          2,
+        );
       } catch (err) {
         return { error: `run_dreaming failed: ${String(err)}` };
-      }
-    },
-  });
-}
-
-function listDreamsTool() {
-  return tool({
-    description:
-      'List every dream file on disk (dates for which Dreaming has been ' +
-      'run). Most-recent first. Use when the user asks what dreams are ' +
-      'pending, or to find a specific date to review.',
-    inputSchema: jsonSchema({ type: 'object', properties: {} }),
-    execute: async () => {
-      try {
-        const dates = await invoke<string[]>('list_dream_dates');
-        if (dates.length === 0) return 'No dreams on disk.';
-        return JSON.stringify(dates, null, 2);
-      } catch (err) {
-        return { error: `list_dreams failed: ${String(err)}` };
-      }
-    },
-  });
-}
-
-function readDreamTool() {
-  return tool({
-    description:
-      "Read a specific day's dream file — the candidate memories + " +
-      'optional MEMORY.md trim proposal. Returns null if no dream exists ' +
-      'for that date. Follow up by helping the user decide which ' +
-      'candidates to save (`append_brand_file`) and then archive the ' +
-      'dream (`discard_dream`).',
-    inputSchema: jsonSchema({
-      type: 'object',
-      required: ['date'],
-      properties: {
-        date: { type: 'string', description: 'YYYY-MM-DD' },
-      },
-    }),
-    execute: async (input: unknown) => {
-      const r = (input ?? {}) as { date?: string };
-      if (!r.date) return { error: 'read_dream: date is required' };
-      try {
-        const dream = await invoke<DreamFile | null>('read_dream', {
-          date: r.date,
-        });
-        if (!dream) return `No dream file for ${r.date}.`;
-        return JSON.stringify(dream, null, 2);
-      } catch (err) {
-        return { error: `read_dream failed: ${String(err)}` };
-      }
-    },
-  });
-}
-
-function discardDreamTool() {
-  return tool({
-    description:
-      'Archive a dream file (moves it to dreams/discarded/). Use this ' +
-      'after the user has reviewed the candidates — whether they saved ' +
-      'some or all of them, or decided to skip the whole batch. Keeps ' +
-      'the live dreams list clean.',
-    inputSchema: jsonSchema({
-      type: 'object',
-      required: ['date'],
-      properties: {
-        date: { type: 'string', description: 'YYYY-MM-DD' },
-      },
-    }),
-    execute: async (input: unknown) => {
-      const r = (input ?? {}) as { date?: string };
-      if (!r.date) return { error: 'discard_dream: date is required' };
-      try {
-        const ok = await invoke<boolean>('discard_dream', { date: r.date });
-        return ok
-          ? `Archived dream ${r.date} to dreams/discarded/.`
-          : `No dream file at ${r.date}.`;
-      } catch (err) {
-        return { error: `discard_dream failed: ${String(err)}` };
       }
     },
   });
@@ -1818,7 +1731,7 @@ async function executeToolCall(
   // Mid-turn user-interrupt injection. If the user typed a message while
   // this stream was running, splice it in as a `<user-interrupt>` block
   // ahead of the tool result so the model sees it on the very next step
-  // of the current turn — no manual "➤" needed. Messages with file
+  // of the current turn — no manual send-button click needed. Messages with file
   // attachments stay queued (they can't ride a text-only tool_result).
   // Skipped for subagents: their context has nothing to do with the
   // user's main conversation, and pulling interrupts into their

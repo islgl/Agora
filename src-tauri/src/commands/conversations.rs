@@ -104,14 +104,12 @@ pub async fn update_conversation_title_auto(
 ) -> Result<(), String> {
     // Double-check the lock at write time in case the user renamed while a
     // background summarization was in flight.
-    sqlx::query(
-        "UPDATE conversations SET title = ? WHERE id = ? AND title_locked = 0",
-    )
-    .bind(&title)
-    .bind(&id)
-    .execute(&*pool)
-    .await
-    .map_err(|e| e.to_string())?;
+    sqlx::query("UPDATE conversations SET title = ? WHERE id = ? AND title_locked = 0")
+        .bind(&title)
+        .bind(&id)
+        .execute(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
 

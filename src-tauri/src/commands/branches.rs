@@ -53,7 +53,10 @@ pub async fn switch_branch(
 
     let by_id: HashMap<String, &MessageRow> = all_rows.iter().map(|r| (r.id.clone(), r)).collect();
     if !by_id.contains_key(&message_id) {
-        return Err(format!("message {} not found in this conversation", message_id));
+        return Err(format!(
+            "message {} not found in this conversation",
+            message_id
+        ));
     }
 
     // children_by_parent: parent_id → children sorted by created_at ASC
@@ -108,7 +111,10 @@ pub async fn switch_branch(
     let mut buckets: HashMap<(Option<String>, String), Vec<(String, i64)>> = HashMap::new();
     for r in &all_rows {
         let key = (r.parent_id.clone(), format!("{:?}", r.role));
-        buckets.entry(key).or_default().push((r.id.clone(), r.created_at));
+        buckets
+            .entry(key)
+            .or_default()
+            .push((r.id.clone(), r.created_at));
     }
     for v in buckets.values_mut() {
         v.sort_by_key(|(_, ts)| *ts);
@@ -122,7 +128,11 @@ pub async fn switch_branch(
             .get(&key)
             .map(|list| {
                 let pos = list.iter().position(|(sid, _)| sid == id).unwrap_or(0);
-                let prev = if pos > 0 { Some(list[pos - 1].0.clone()) } else { None };
+                let prev = if pos > 0 {
+                    Some(list[pos - 1].0.clone())
+                } else {
+                    None
+                };
                 let next = list.get(pos + 1).map(|(sid, _)| sid.clone());
                 (pos as u32, list.len() as u32, prev, next)
             })

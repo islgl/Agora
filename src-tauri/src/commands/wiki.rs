@@ -66,10 +66,7 @@ pub async fn list_wiki_pages(app: AppHandle) -> Result<Vec<WikiPage>, String> {
 }
 
 #[tauri::command]
-pub async fn read_wiki_page(
-    app: AppHandle,
-    rel_path: String,
-) -> Result<WikiPageContents, String> {
+pub async fn read_wiki_page(app: AppHandle, rel_path: String) -> Result<WikiPageContents, String> {
     let root = paths::wiki_dir(&app)?;
     let rel = sanitize_rel(&rel_path)?;
     let full = root.join(&rel);
@@ -119,18 +116,14 @@ pub async fn write_wiki_page(
 }
 
 #[tauri::command]
-pub async fn delete_wiki_page(
-    app: AppHandle,
-    rel_path: String,
-) -> Result<bool, String> {
+pub async fn delete_wiki_page(app: AppHandle, rel_path: String) -> Result<bool, String> {
     let root = paths::wiki_dir(&app)?;
     let rel = sanitize_rel(&rel_path)?;
     let full = root.join(&rel);
     if !full.exists() {
         return Ok(false);
     }
-    fs::remove_file(&full)
-        .map_err(|e| format!("delete {}: {e}", full.display()))?;
+    fs::remove_file(&full).map_err(|e| format!("delete {}: {e}", full.display()))?;
     Ok(true)
 }
 
@@ -143,8 +136,7 @@ pub async fn update_wiki_index(app: AppHandle) -> Result<String, String> {
     let backlinks = compute_backlinks(&root, &pages);
     let body = render_index(&pages, &backlinks);
     let index_path = root.join("index.md");
-    fs::write(&index_path, &body)
-        .map_err(|e| format!("write index.md: {e}"))?;
+    fs::write(&index_path, &body).map_err(|e| format!("write index.md: {e}"))?;
     Ok(body)
 }
 
@@ -265,10 +257,7 @@ fn compute_backlinks(root: &Path, pages: &[WikiPage]) -> BTreeMap<String, Vec<St
 static WIKI_LINK_RE: once_cell::sync::Lazy<regex::Regex> =
     once_cell::sync::Lazy::new(|| regex::Regex::new(r"\[\[([^\]]+)\]\]").unwrap());
 
-fn render_index(
-    pages: &[WikiPage],
-    backlinks: &BTreeMap<String, Vec<String>>,
-) -> String {
+fn render_index(pages: &[WikiPage], backlinks: &BTreeMap<String, Vec<String>>) -> String {
     let mut out = String::new();
     out.push_str("# Wiki Index\n\n");
     out.push_str(
@@ -276,7 +265,9 @@ fn render_index(
          on the next rebuild._\n\n",
     );
     if pages.is_empty() {
-        out.push_str("No wiki pages yet. Drop a file into `~/.agora/raw/` or create a page manually.\n");
+        out.push_str(
+            "No wiki pages yet. Drop a file into `~/.agora/raw/` or create a page manually.\n",
+        );
         return out;
     }
 
@@ -322,18 +313,24 @@ fn render_index(
                 if !page.tags.is_empty() {
                     out.push_str(&format!(
                         "  - tags: {}\n",
-                        page.tags.iter().map(|t| format!("#{t}")).collect::<Vec<_>>().join(" ")
+                        page.tags
+                            .iter()
+                            .map(|t| format!("#{t}"))
+                            .collect::<Vec<_>>()
+                            .join(" ")
                     ));
                 }
                 let incoming = backlinks
                     .get(&page.title)
-                    .map(|v| v.iter().filter(|r| **r != page.rel_path).cloned().collect::<Vec<_>>())
+                    .map(|v| {
+                        v.iter()
+                            .filter(|r| **r != page.rel_path)
+                            .cloned()
+                            .collect::<Vec<_>>()
+                    })
                     .unwrap_or_default();
                 if !incoming.is_empty() {
-                    out.push_str(&format!(
-                        "  - referenced by: {}\n",
-                        incoming.join(", "),
-                    ));
+                    out.push_str(&format!("  - referenced by: {}\n", incoming.join(", "),));
                 }
             }
             out.push('\n');

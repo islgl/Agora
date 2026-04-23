@@ -222,10 +222,7 @@ pub async fn bash_background(
 }
 
 /// Snapshot of the captured output + current status of a background task.
-pub async fn read_task_output(
-    args: &Value,
-    store: &BackgroundStore,
-) -> Result<String, String> {
+pub async fn read_task_output(args: &Value, store: &BackgroundStore) -> Result<String, String> {
     let id = require_task_id(args, "read_task_output")?;
     let guard = store.read().await;
     let Some(task) = guard.get(&id) else {
@@ -328,10 +325,7 @@ fn require_task_id(args: &Value, tool: &str) -> Result<String, String> {
         .ok_or_else(|| format!("{}: missing `task_id`", tool))
 }
 
-fn resolve_cwd(
-    args: &Value,
-    workspace_root: Option<&Path>,
-) -> Result<Option<PathBuf>, String> {
+fn resolve_cwd(args: &Value, workspace_root: Option<&Path>) -> Result<Option<PathBuf>, String> {
     if let Some(cwd) = args.get("cwd").and_then(Value::as_str) {
         let p = Path::new(cwd);
         if p.is_absolute() {
@@ -470,12 +464,9 @@ mod tests {
         if !is_unix() {
             return;
         }
-        let out = bash(
-            &json!({ "command": "sleep 2", "timeout_ms": 100 }),
-            None,
-        )
-        .await
-        .unwrap();
+        let out = bash(&json!({ "command": "sleep 2", "timeout_ms": 100 }), None)
+            .await
+            .unwrap();
         let v: Value = serde_json::from_str(&out).unwrap();
         assert_eq!(v["timed_out"], true);
     }
@@ -521,13 +512,9 @@ mod tests {
             return;
         }
         let store: BackgroundStore = RwLock::new(HashMap::new());
-        let spawn_out = bash_background(
-            &json!({ "command": "sleep 10" }),
-            None,
-            &store,
-        )
-        .await
-        .unwrap();
+        let spawn_out = bash_background(&json!({ "command": "sleep 10" }), None, &store)
+            .await
+            .unwrap();
         let spawn_v: Value = serde_json::from_str(&spawn_out).unwrap();
         let task_id = spawn_v["task_id"].as_str().unwrap().to_string();
 

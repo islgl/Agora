@@ -22,11 +22,23 @@ import { loadWikiIngestTools } from '@/lib/ai/tools';
  * Settings tab when they next open it.
  */
 
-interface IngestRequest {
+export interface IngestRequest {
   relPath: string;
   absPath: string;
   kind: string;
   supported: boolean;
+}
+
+/**
+ * Imperative entry point mirroring the file-watcher event path. Use this
+ * from the UI when the user wants to re-run ingest on an existing raw
+ * file, or ingest a pre-existing file the watcher never saw (app start
+ * does not retroactively ingest). Identical semantics to the auto-path:
+ * same subagent, same inFlight dedup, same toasts, same wikiStore
+ * refresh.
+ */
+export async function triggerIngest(req: IngestRequest): Promise<void> {
+  return handleRequest(req);
 }
 
 interface ExtractedText {
@@ -110,10 +122,10 @@ async function handleRequest(req: IngestRequest): Promise<void> {
       background: true,
     });
 
-    toast.info(`📥 Generating wiki page from ${req.relPath}…`);
+    toast.info(`Generating wiki page from ${req.relPath}…`);
     const result = await done;
     if (result) {
-      toast.success(`✓ Wiki updated from ${req.relPath}`);
+      toast.success(`Wiki updated from ${req.relPath}`);
     } else {
       // Dig the actual failure reason out of the subagent record — the
       // null-done case covers both `failed` (with an error message) and

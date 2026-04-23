@@ -88,7 +88,10 @@ pub async fn run_script(
             if formatted.is_empty() {
                 formatted.push_str("(no output)\n");
             }
-            formatted.push_str(&format!("--- exit {} ---", output.status.code().unwrap_or(-1)));
+            formatted.push_str(&format!(
+                "--- exit {} ---",
+                output.status.code().unwrap_or(-1)
+            ));
             Ok(ScriptOutput {
                 success: output.status.success(),
                 formatted,

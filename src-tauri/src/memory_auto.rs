@@ -144,8 +144,7 @@ impl MemoryStore {
                     // models in the same index. Best the caller can do is
                     // wipe the old memory or stick with the first model.
                     return Err(
-                        "embedding dimension mismatch — clear existing auto memory first"
-                            .into(),
+                        "embedding dimension mismatch — clear existing auto memory first".into(),
                     );
                 }
                 None => {
@@ -177,11 +176,7 @@ impl MemoryStore {
         })
     }
 
-    pub async fn search(
-        &self,
-        query: Vec<f32>,
-        limit: usize,
-    ) -> Result<Vec<MemoryRow>, String> {
+    pub async fn search(&self, query: Vec<f32>, limit: usize) -> Result<Vec<MemoryRow>, String> {
         let guard = self.inner.read().await;
         let inner = match guard.as_ref() {
             Some(i) if i.dim == query.len() => i,
@@ -214,7 +209,8 @@ impl MemoryStore {
             .map_err(|e| format!("memory_auto search fetch: {e}"))?;
 
         // Preserve HNSW ordering by id.
-        let mut by_id: std::collections::HashMap<String, MemoryRow> = std::collections::HashMap::new();
+        let mut by_id: std::collections::HashMap<String, MemoryRow> =
+            std::collections::HashMap::new();
         for row in rows {
             let id: String = row.get("id");
             by_id.insert(

@@ -107,6 +107,25 @@ export function LauncherPanel() {
 
   const slashMenuOpen = slashMatches.length > 0;
 
+  // Highlight a leading `/command` only when it exactly matches a known
+  // command followed by whitespace or end-of-string — mirrors the
+  // overlay in `src/components/ui/ai-prompt-box.tsx`. Partial typings
+  // like `/ch` stay unstyled so they don't flash during typing.
+  const knownSlashCommands = useMemo(
+    () => SLASH_COMMANDS.map((s) => s.command),
+    [],
+  );
+  const slashPrefix = useMemo(() => {
+    const m = input.match(/^\/\S+/);
+    if (!m) return null;
+    const token = m[0];
+    if (!knownSlashCommands.includes(token)) return null;
+    const next = input.charAt(token.length);
+    if (next !== '' && !/\s/.test(next)) return null;
+    return token;
+  }, [input, knownSlashCommands]);
+  const slashRest = slashPrefix ? input.slice(slashPrefix.length) : '';
+
   // Grow the native window downward when the slash menu opens; shrink back
   // to the compact 1Password-style size when the user clears the slash.
   useEffect(() => {
@@ -141,6 +160,13 @@ export function LauncherPanel() {
     if (event.key === 'Escape') {
       event.preventDefault();
       hide();
+      return;
+    }
+
+    // IME composition (Chinese/Japanese/Korean): Enter commits a candidate
+    // rather than submitting or navigating the slash menu. keyCode 229 is
+    // the cross-browser fallback. Mirrors ai-prompt-box.tsx.
+    if (event.nativeEvent.isComposing || event.keyCode === 229) {
       return;
     }
 
@@ -217,19 +243,42 @@ export function LauncherPanel() {
                   WebkitMaskPosition: 'center',
                 }}
               />
-              <textarea
-                ref={inputRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                autoFocus
-                rows={1}
-                placeholder="Ask Agora, or / to pick a command…"
-                className="flex-1 resize-none bg-transparent text-[18px] leading-8 text-foreground placeholder:text-muted-foreground/70 focus:outline-none"
-                style={{
-                  fontFamily: 'Georgia, serif',
-                }}
-              />
+              <div className="relative flex-1">
+                {slashPrefix && (
+                  <div
+                    aria-hidden
+                    className="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words text-[18px] leading-8"
+                    style={{ fontFamily: 'Georgia, serif' }}
+                  >
+                    <span
+                      style={{
+                        color: 'var(--primary)',
+                        background:
+                          'color-mix(in oklab, var(--primary) 12%, transparent)',
+                      }}
+                    >
+                      {slashPrefix}
+                    </span>
+                    <span className="text-foreground">{slashRest}</span>
+                  </div>
+                )}
+                <textarea
+                  ref={inputRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  autoFocus
+                  rows={1}
+                  placeholder="Ask Agora, or / to pick a command…"
+                  className={`w-full resize-none bg-transparent text-[18px] leading-8 placeholder:text-muted-foreground/70 focus:outline-none ${
+                    slashPrefix ? 'text-transparent' : 'text-foreground'
+                  }`}
+                  style={{
+                    fontFamily: 'Georgia, serif',
+                    caretColor: slashPrefix ? 'var(--foreground)' : undefined,
+                  }}
+                />
+              </div>
             </div>
 
             {slashMenuOpen && (

@@ -6,6 +6,7 @@ import {
   Ban,
   X,
   ChevronDown,
+  ChevronRight,
   Wrench,
   Brain,
   MessageSquare,
@@ -204,11 +205,15 @@ function EventRow({ event }: { event: SubagentEvent }) {
   return (
     <div className="flex items-start gap-1.5 text-[11px] ml-4">
       <span
-        className={`shrink-0 text-[10px] ${
+        className={`shrink-0 inline-flex items-center ${
           event.isError ? 'text-destructive' : 'text-emerald-500'
         }`}
       >
-        {event.isError ? '✖' : '→'}
+        {event.isError ? (
+          <X aria-hidden className="size-3" />
+        ) : (
+          <ChevronRight aria-hidden className="size-3" />
+        )}
       </span>
       <pre
         className="flex-1 p-1.5 rounded text-[10px] overflow-x-auto whitespace-pre-wrap break-all font-mono"

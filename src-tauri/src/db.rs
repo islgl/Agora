@@ -194,6 +194,11 @@ const MIGRATIONS: &[&str] = &[
     "ALTER TABLE global_settings ADD COLUMN base_url_embedding_openai TEXT NOT NULL DEFAULT ''",
     "ALTER TABLE global_settings ADD COLUMN quick_launch_enabled INTEGER NOT NULL DEFAULT 1",
     "ALTER TABLE global_settings ADD COLUMN close_to_tray_enabled INTEGER NOT NULL DEFAULT 1",
+    // Phase 6 (idle-triggered Dreaming). Default off — user explicitly
+    // opts in from Settings → Personalization. Minutes is a plain i64 so
+    // SELECT doesn't need a special decode.
+    "ALTER TABLE global_settings ADD COLUMN auto_dream_on_idle INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE global_settings ADD COLUMN dream_idle_minutes INTEGER NOT NULL DEFAULT 60",
 ];
 
 /// One-shot backfills. Keyed by a flag in `meta_flags`; skipped once done.

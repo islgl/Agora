@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { Wrench } from 'lucide-react';
 import { useChatStore } from '@/store/chatStore';
 import type { Conversation, Message, MessagePart } from '@/types';
 import { MarkdownRenderer } from './MarkdownRenderer';
@@ -103,12 +104,18 @@ function renderParts(parts: MessagePart[]): React.ReactNode {
       }
       if (p.type === 'tool_call') {
         return (
-          <pre
+          <div
             key={i}
-            className="text-xs bg-muted/40 p-2 rounded my-2 whitespace-pre-wrap break-all"
+            className="text-xs bg-muted/40 p-2 rounded my-2"
           >
-            {`🔧 ${p.name}\n${tryStringify(p.input)}`}
-          </pre>
+            <div className="flex items-center gap-1.5 font-medium">
+              <Wrench aria-hidden className="size-3" />
+              <span>{p.name}</span>
+            </div>
+            <pre className="mt-1 whitespace-pre-wrap break-all">
+              {tryStringify(p.input)}
+            </pre>
+          </div>
         );
       }
       return null;

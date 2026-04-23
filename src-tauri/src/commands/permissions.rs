@@ -56,9 +56,7 @@ impl PermissionCheckResult {
 }
 
 #[tauri::command]
-pub async fn list_permissions(
-    pool: State<'_, DbPool>,
-) -> Result<Vec<ToolPermission>, String> {
+pub async fn list_permissions(pool: State<'_, DbPool>) -> Result<Vec<ToolPermission>, String> {
     sqlx::query_as::<_, ToolPermission>(
         "SELECT id, tool_name, pattern, decision, created_at \
          FROM tool_permissions ORDER BY created_at DESC",
@@ -136,12 +134,11 @@ pub async fn check_permission(
     tool_name: String,
     input: Value,
 ) -> Result<PermissionCheckResult, String> {
-    let auto_approve: bool = sqlx::query_scalar(
-        "SELECT auto_approve_readonly FROM global_settings WHERE id = 1",
-    )
-    .fetch_one(&*pool)
-    .await
-    .unwrap_or(true);
+    let auto_approve: bool =
+        sqlx::query_scalar("SELECT auto_approve_readonly FROM global_settings WHERE id = 1")
+            .fetch_one(&*pool)
+            .await
+            .unwrap_or(true);
 
     let workspace_root = handles.builtins.workspace_root().await;
     let rules = sqlx::query_as::<_, ToolPermission>(
@@ -195,18 +192,12 @@ fn evaluate(
     // mask a narrower deny.
     for rule in rules.iter().filter(|r| r.decision == "deny") {
         if matches_pattern(tool_name, &rule.pattern, input) {
-            return PermissionCheckResult::deny(
-                Some(rule.clone()),
-                Some("matched deny rule"),
-            );
+            return PermissionCheckResult::deny(Some(rule.clone()), Some("matched deny rule"));
         }
     }
     for rule in rules.iter().filter(|r| r.decision == "allow") {
         if matches_pattern(tool_name, &rule.pattern, input) {
-            return PermissionCheckResult::allow(
-                Some(rule.clone()),
-                Some("matched allow rule"),
-            );
+            return PermissionCheckResult::allow(Some(rule.clone()), Some("matched allow rule"));
         }
     }
 
@@ -226,10 +217,7 @@ pub fn matches_pattern(tool_name: &str, pattern: &str, input: &Value) -> bool {
         return true;
     }
 
-    let Ok(matcher) = GlobBuilder::new(pattern)
-        .literal_separator(false)
-        .build()
-    else {
+    let Ok(matcher) = GlobBuilder::new(pattern).literal_separator(false).build() else {
         return false;
     };
     let matcher = matcher.compile_matcher();

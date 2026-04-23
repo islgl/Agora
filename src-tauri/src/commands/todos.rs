@@ -27,15 +27,16 @@ pub async fn get_todos(
     pool: State<'_, DbPool>,
     conversation_id: String,
 ) -> Result<Vec<Todo>, String> {
-    let row: Option<String> = sqlx::query_scalar(
-        "SELECT todos_json FROM conversation_todos WHERE conversation_id = ?",
-    )
-    .bind(&conversation_id)
-    .fetch_optional(&*pool)
-    .await
-    .map_err(|e| e.to_string())?;
+    let row: Option<String> =
+        sqlx::query_scalar("SELECT todos_json FROM conversation_todos WHERE conversation_id = ?")
+            .bind(&conversation_id)
+            .fetch_optional(&*pool)
+            .await
+            .map_err(|e| e.to_string())?;
 
-    let Some(json) = row else { return Ok(Vec::new()); };
+    let Some(json) = row else {
+        return Ok(Vec::new());
+    };
     serde_json::from_str::<Vec<Todo>>(&json).map_err(|e| e.to_string())
 }
 

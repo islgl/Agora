@@ -161,13 +161,12 @@ pub async fn proxy_ai_request(
 
     // If we've already learned this endpoint requires adaptive thinking,
     // rewrite the body pre-emptively instead of eating a 400 + retry.
-    let initial_body = if request.url.contains("/v1/messages")
-        && endpoint_needs_adaptive(&request.url)
-    {
-        rewrite_thinking_adaptive(&body_bytes).unwrap_or_else(|| body_bytes.clone())
-    } else {
-        body_bytes.clone()
-    };
+    let initial_body =
+        if request.url.contains("/v1/messages") && endpoint_needs_adaptive(&request.url) {
+            rewrite_thinking_adaptive(&body_bytes).unwrap_or_else(|| body_bytes.clone())
+        } else {
+            body_bytes.clone()
+        };
 
     let mut response = match build_request(initial_body).send().await {
         Ok(r) => r,
@@ -241,8 +240,7 @@ pub async fn proxy_ai_request(
                 headers: HashMap::new(),
             });
             let _ = on_event.send(ProxyEvent::Chunk {
-                bytes_base64: base64::engine::general_purpose::STANDARD
-                    .encode(err_body.as_bytes()),
+                bytes_base64: base64::engine::general_purpose::STANDARD.encode(err_body.as_bytes()),
             });
             let _ = on_event.send(ProxyEvent::End);
             return Ok(());

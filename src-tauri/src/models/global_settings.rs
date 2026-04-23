@@ -76,6 +76,15 @@ pub struct GlobalSettings {
     /// quitting the app. False lets the default close behaviour run.
     #[serde(default = "default_true")]
     pub close_to_tray_enabled: bool,
+    /// When true, Dreaming auto-fires after `dream_idle_minutes` minutes
+    /// of conversation inactivity (while the app is still running). Off
+    /// by default — the user opts in explicitly.
+    #[serde(default)]
+    pub auto_dream_on_idle: bool,
+    /// Minutes of conversation idleness before the idle trigger considers
+    /// firing. Ignored when `auto_dream_on_idle` is false.
+    #[serde(default = "default_dream_idle_minutes")]
+    pub dream_idle_minutes: i64,
 }
 
 fn default_embedding_provider() -> String {
@@ -104,4 +113,8 @@ fn default_thinking_effort() -> String {
 
 fn default_hooks_json() -> String {
     "{}".to_string()
+}
+
+fn default_dream_idle_minutes() -> i64 {
+    60
 }

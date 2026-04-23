@@ -37,14 +37,12 @@ pub fn run() {
             if let Ok(cfg_dir) = paths::config_dir(&handle) {
                 let _ = commands::brand_loader::ensure_defaults(&cfg_dir);
             }
-            // Wiki / Raw / Logs / Dreams directories are created lazily by
-            // their helpers, but touching them here ensures the folder
-            // layout exists the first time the user opens ~/.agora/ in
-            // Finder.
+            // Wiki / Raw / Logs directories are created lazily by their
+            // helpers, but touching them here ensures the folder layout
+            // exists the first time the user opens ~/.agora/ in Finder.
             let _ = paths::wiki_dir(&handle);
             let _ = paths::raw_dir(&handle);
             let _ = paths::logs_dir(&handle);
-            let _ = paths::dreams_dir(&handle);
 
             let db_file =
                 paths::db_path(&handle).expect("failed to resolve ~/.agora/agora.db");
@@ -256,10 +254,7 @@ pub fn run() {
             commands::memory_auto_cmd::clear_auto_memory,
             commands::daily_log::append_daily_log,
             commands::daily_log::read_daily_log,
-            commands::daily_log::list_dream_dates,
-            commands::daily_log::read_dream,
-            commands::daily_log::write_dream,
-            commands::daily_log::discard_dream,
+            commands::daily_log::read_daily_logs_since_last_dreaming,
             commands::daily_log::dreaming_should_run,
             commands::daily_log::mark_dreaming_ran,
             commands::hooks::run_hooks,

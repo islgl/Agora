@@ -66,10 +66,7 @@ impl BuiltinsRuntime {
     /// confirmed the user allows this invocation.
     pub async fn invoke(&self, call: &ToolCall) -> ToolResult {
         let Some(kind) = BuiltinKind::from_tool_name(&call.name) else {
-            return ToolResult::err(
-                &call.id,
-                format!("not a built-in tool: {}", call.name),
-            );
+            return ToolResult::err(&call.id, format!("not a built-in tool: {}", call.name));
         };
 
         let root = self.workspace_root().await;
@@ -87,9 +84,7 @@ impl BuiltinsRuntime {
             BuiltinKind::ReadTaskOutput => {
                 bash::read_task_output(&call.input, &self.background_tasks).await
             }
-            BuiltinKind::StopTask => {
-                bash::stop_task(&call.input, &self.background_tasks).await
-            }
+            BuiltinKind::StopTask => bash::stop_task(&call.input, &self.background_tasks).await,
         };
 
         match outcome {

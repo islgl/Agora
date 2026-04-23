@@ -1,3 +1,4 @@
+import { CornerDownRight, Paperclip, Send, X } from 'lucide-react';
 import { useAskUserStore } from '@/store/askUserStore';
 import { useChatStore, type QueuedMessage } from '@/store/chatStore';
 import { usePermissionsStore } from '@/store/permissionsStore';
@@ -11,15 +12,16 @@ const EMPTY_QUEUE: readonly QueuedMessage[] = [];
 interface QueuedChipsProps {
   conversationId: string;
   isStreaming: boolean;
-  /** Called when the user clicks ➤ on a chip. The parent is responsible
-   *  for removing the chip from the queue and routing the payload through
-   *  the normal send pipeline (slash parsing, mode switch, sendMessage). */
+  /** Called when the user clicks the send button on a chip. The parent
+   *  is responsible for removing the chip from the queue and routing
+   *  the payload through the normal send pipeline (slash parsing, mode
+   *  switch, sendMessage). */
   onSend: (msg: QueuedMessage) => void;
 }
 
 /**
  * Horizontal row of pending-message chips shown above the composer while a
- * conversation has queued messages. Drain is manual (per-chip ➤ button) —
+ * conversation has queued messages. Drain is manual (per-chip send button) —
  * see the discussion in the commit introducing this component for why we
  * don't auto-send when the stream ends.
  */
@@ -45,17 +47,17 @@ export function QueuedChips({
   const hasAttachments = queue.some((m) => m.files.length > 0);
   const helperText = (() => {
     if (askUserPending) {
-      return 'Answer the clarification above, then click ➤ on a chip to send it.';
+      return 'Answer the clarification above, then use the send button on a chip.';
     }
     if (approvalPending) {
-      return 'Resolve the approval prompt above, then click ➤ on a chip to send it.';
+      return 'Resolve the approval prompt above, then use the send button on a chip.';
     }
     if (isStreaming) {
       return hasAttachments
-        ? "Attachments can't auto-inject — they'll send as a new turn once the response ends, or click ➤ to stop and send now."
-        : "These auto-inject on the assistant's next tool call, or send as a new turn once the response ends. Click ➤ to stop and send now.";
+        ? "Attachments can't auto-inject — they'll send as a new turn once the response ends, or use the send button to stop and send now."
+        : "These auto-inject on the assistant's next tool call, or send as a new turn once the response ends. Use the send button to stop and send now.";
     }
-    return 'Queued — sending as a new turn. ✕ to discard.';
+    return 'Queued — sending as a new turn. Use the dismiss button to discard.';
   })();
 
   return (
@@ -71,7 +73,7 @@ export function QueuedChips({
                   : m.content
                 : `${m.files.length} attachment${m.files.length === 1 ? '' : 's'}`;
             // Three visual states:
-            //   - streaming + text-only → primary tint + ↪ prefix (will auto-inject)
+            //   - streaming + text-only → primary tint + inject-arrow prefix (will auto-inject)
             //   - streaming + has files → amber tint (stays pending)
             //   - not streaming → neutral (manual dispatch)
             const willAutoInject = isStreaming && m.files.length === 0;
@@ -93,24 +95,23 @@ export function QueuedChips({
                 style={{ boxShadow, background }}
                 title={
                   willAutoInject
-                    ? "Will auto-inject at the assistant's next tool call. Click ➤ to stop the stream and send as a new turn instead."
+                    ? "Will auto-inject at the assistant's next tool call. Use the send button to stop the stream and send as a new turn instead."
                     : stuckOnAttachments
-                      ? "Attachments can't ride a tool_result. Click ➤ to stop the stream and send as a new turn."
+                      ? "Attachments can't ride a tool_result. Use the send button to stop the stream and send as a new turn."
                       : m.content
                 }
               >
                 {willAutoInject && (
-                  <span
+                  <CornerDownRight
                     aria-hidden
-                    className="text-primary/80 mr-0.5 font-medium"
-                  >
-                    ↪
-                  </span>
+                    className="size-3 text-primary/80 mr-0.5"
+                  />
                 )}
                 <span className="truncate max-w-[36ch]">{preview}</span>
                 {m.files.length > 0 && m.content.length > 0 && (
-                  <span className="text-muted-foreground ml-1">
-                    · {m.files.length}📎
+                  <span className="text-muted-foreground ml-1 inline-flex items-center gap-0.5">
+                    · {m.files.length}
+                    <Paperclip aria-hidden className="size-3" />
                   </span>
                 )}
                 <button
@@ -135,7 +136,7 @@ export function QueuedChips({
                       : 'Send now'
                   }
                 >
-                  ➤
+                  <Send aria-hidden className="size-3.5" />
                 </button>
                 <button
                   type="button"
@@ -145,7 +146,7 @@ export function QueuedChips({
                              text-muted-foreground hover:bg-accent hover:text-destructive"
                   title="Discard"
                 >
-                  ✕
+                  <X aria-hidden className="size-3.5" />
                 </button>
               </div>
             );

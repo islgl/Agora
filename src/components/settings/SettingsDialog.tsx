@@ -1,10 +1,11 @@
 import {
+  BookOpen,
   Bot,
-  BrainCircuit,
   KeyRound,
   Settings as SettingsIcon,
   ShieldCheck,
   Sparkles,
+  UserCog,
   Wand2,
   Webhook,
 } from 'lucide-react';
@@ -23,7 +24,8 @@ import { McpServersList } from './McpServersList';
 import { HooksForm } from './HooksForm';
 import { PermissionsForm } from './PermissionsForm';
 import { SkillsList } from './SkillsList';
-import { MemoryForm } from './MemoryForm';
+import { PersonalizationForm } from './PersonalizationForm';
+import { WikiForm } from './WikiForm';
 
 const TAB_TRIGGER_CLASS =
   '!flex-none !h-auto w-full rounded-lg px-3 py-2 text-muted-foreground ' +
@@ -90,9 +92,13 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                 <Sparkles className="size-4 shrink-0" />
                 Capabilities
               </TabsTrigger>
-              <TabsTrigger value="memory" className={TAB_TRIGGER_CLASS}>
-                <BrainCircuit className="size-4 shrink-0" />
-                Memory
+              <TabsTrigger value="personalization" className={TAB_TRIGGER_CLASS}>
+                <UserCog className="size-4 shrink-0" />
+                Personalization
+              </TabsTrigger>
+              <TabsTrigger value="wiki" className={TAB_TRIGGER_CLASS}>
+                <BookOpen className="size-4 shrink-0" />
+                Wiki
               </TabsTrigger>
               <TabsTrigger value="mcp" className={TAB_TRIGGER_CLASS}>
                 <McpIcon className="size-4 shrink-0" />
@@ -139,10 +145,16 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
               <CapabilitiesForm />
             </TabsContent>
             <TabsContent
-              value="memory"
+              value="personalization"
               className="flex-1 min-w-0 min-h-0 overflow-y-auto px-6 py-6"
             >
-              <MemoryForm />
+              <PersonalizationForm />
+            </TabsContent>
+            <TabsContent
+              value="wiki"
+              className="flex-1 min-w-0 min-h-0 overflow-y-auto px-6 py-6"
+            >
+              <WikiForm />
             </TabsContent>
             <TabsContent
               value="mcp"

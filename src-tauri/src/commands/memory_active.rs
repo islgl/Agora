@@ -119,11 +119,7 @@ fn contains_secret(s: &str) -> bool {
 /// Append `line` to `path`, optionally under a `## {section}` heading.
 /// Creates the file / section on demand. Idempotent: if the exact line
 /// (trimmed) already exists in the file, this is a no-op.
-fn append_line(
-    path: &Path,
-    line: &str,
-    section: Option<&str>,
-) -> Result<(), String> {
+fn append_line(path: &Path, line: &str, section: Option<&str>) -> Result<(), String> {
     let existing = if path.exists() {
         fs::read_to_string(path).map_err(|e| format!("read {}: {e}", path.display()))?
     } else {
@@ -207,8 +203,8 @@ pub async fn delete_memory_line(
     if !path.exists() {
         return Ok(false);
     }
-    let existing = fs::read_to_string(&path)
-        .map_err(|e| format!("read {}: {e}", path.display()))?;
+    let existing =
+        fs::read_to_string(&path).map_err(|e| format!("read {}: {e}", path.display()))?;
     let target = line.trim();
     let mut removed = false;
     let kept: Vec<&str> = existing
@@ -226,8 +222,7 @@ pub async fn delete_memory_line(
         return Ok(false);
     }
     let new_contents = kept.join("\n") + "\n";
-    fs::write(&path, new_contents)
-        .map_err(|e| format!("write {}: {e}", path.display()))?;
+    fs::write(&path, new_contents).map_err(|e| format!("write {}: {e}", path.display()))?;
     Ok(true)
 }
 
@@ -237,12 +232,14 @@ mod tests {
 
     #[test]
     fn secrets_get_blocked() {
-        assert!(contains_secret("my key is sk-ant-api03-abc123def456ghi789jkl"));
-        assert!(contains_secret("token ghp_1234567890abcdefghijklmnopqrstuvwxyzA1"));
-        // Google API key pattern: AIza + exactly 35 chars (39 total).
         assert!(contains_secret(
-            "AIzaSyB0123456789abcdefghijklmnopqrstuv"
+            "my key is sk-ant-api03-abc123def456ghi789jkl"
         ));
+        assert!(contains_secret(
+            "token ghp_1234567890abcdefghijklmnopqrstuvwxyzA1"
+        ));
+        // Google API key pattern: AIza + exactly 35 chars (39 total).
+        assert!(contains_secret("AIzaSyB0123456789abcdefghijklmnopqrstuv"));
         assert!(contains_secret("AKIAIOSFODNN7EXAMPLE"));
         assert!(contains_secret(
             "hash f3b1c2d4e5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0"

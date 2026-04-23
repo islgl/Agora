@@ -53,22 +53,12 @@ pub fn logs_dir(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(dir)
 }
 
-/// Dreaming output — candidate memory edits awaiting user confirmation.
-pub fn dreams_dir(app: &AppHandle) -> Result<PathBuf, String> {
-    let dir = agora_dir(app)?.join("dreams");
-    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    Ok(dir)
-}
-
 /// Resolve one of the known Agora subdirectories by name. Used by the
 /// `open_agora_folder` synth tool so the agent can hand the user a
 /// Finder/Explorer window without hardcoding platform paths in the
 /// frontend. Empty name returns the agora root itself.
 #[tauri::command]
-pub async fn resolve_agora_path(
-    app: AppHandle,
-    subdir: String,
-) -> Result<String, String> {
+pub async fn resolve_agora_path(app: AppHandle, subdir: String) -> Result<String, String> {
     let name = subdir.trim();
     let target = match name {
         "" => agora_dir(&app)?,
@@ -76,12 +66,11 @@ pub async fn resolve_agora_path(
         "wiki" => wiki_dir(&app)?,
         "raw" => raw_dir(&app)?,
         "logs" => logs_dir(&app)?,
-        "dreams" => dreams_dir(&app)?,
         "skills" => skills_dir(&app)?,
         "workspace" => default_workspace_dir(&app)?,
         other => {
             return Err(format!(
-                "unknown agora subdir `{other}` (allowed: config, wiki, raw, logs, dreams, skills, workspace, or empty for the root)"
+                "unknown agora subdir `{other}` (allowed: config, wiki, raw, logs, skills, workspace, or empty for the root)"
             ))
         }
     };

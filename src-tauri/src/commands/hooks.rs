@@ -75,13 +75,11 @@ pub async fn run_hooks(
         return Err(format!("unknown hook event `{}`", event));
     }
 
-    let json: String = sqlx::query_scalar(
-        "SELECT hooks_json FROM global_settings WHERE id = 1",
-    )
-    .fetch_optional(&*pool)
-    .await
-    .map_err(|e| e.to_string())?
-    .unwrap_or_else(|| "{}".to_string());
+    let json: String = sqlx::query_scalar("SELECT hooks_json FROM global_settings WHERE id = 1")
+        .fetch_optional(&*pool)
+        .await
+        .map_err(|e| e.to_string())?
+        .unwrap_or_else(|| "{}".to_string());
 
     let cfg: HookConfig = match serde_json::from_str(&json) {
         Ok(c) => c,
@@ -149,11 +147,7 @@ async fn run_one(entry: &HookEntry, env: &HashMap<String, String>) -> HookOutcom
     };
 
     let output_fut = child.wait_with_output();
-    let outcome = tokio::time::timeout(
-        Duration::from_secs(HOOK_TIMEOUT_SECS),
-        output_fut,
-    )
-    .await;
+    let outcome = tokio::time::timeout(Duration::from_secs(HOOK_TIMEOUT_SECS), output_fut).await;
 
     match outcome {
         Ok(Ok(out)) => {

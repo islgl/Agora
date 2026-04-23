@@ -17,14 +17,12 @@ pub async fn save_conversation_pdf(
     content_width: Option<f64>,
     content_height: Option<f64>,
 ) -> Result<Option<String>, String> {
-    let title: String = sqlx::query_scalar(
-        "SELECT title FROM conversations WHERE id = ?",
-    )
-    .bind(&conversation_id)
-    .fetch_optional(&*pool)
-    .await
-    .map_err(|e| e.to_string())?
-    .unwrap_or_else(|| "conversation".into());
+    let title: String = sqlx::query_scalar("SELECT title FROM conversations WHERE id = ?")
+        .bind(&conversation_id)
+        .fetch_optional(&*pool)
+        .await
+        .map_err(|e| e.to_string())?
+        .unwrap_or_else(|| "conversation".into());
 
     let default_name = format!("{}.pdf", sanitize_filename(&title));
     let (tx, rx) = tokio::sync::oneshot::channel();
@@ -122,8 +120,7 @@ mod mac {
         content_height: Option<f64>,
     ) {
         let webview: &WKWebView = &*(webview_ptr as *const WKWebView);
-        let mtm = MainThreadMarker::new()
-            .expect("generate_pdf must run on the main thread");
+        let mtm = MainThreadMarker::new().expect("generate_pdf must run on the main thread");
         let config = WKPDFConfiguration::new(mtm);
 
         // `createPDFWithConfiguration:` defaults to rendering only the web
@@ -134,7 +131,10 @@ mod mac {
             if w > 0.0 && h > 0.0 {
                 let rect = CGRect {
                     origin: CGPoint { x: 0.0, y: 0.0 },
-                    size: CGSize { width: w, height: h },
+                    size: CGSize {
+                        width: w,
+                        height: h,
+                    },
                 };
                 config.setRect(rect);
             }

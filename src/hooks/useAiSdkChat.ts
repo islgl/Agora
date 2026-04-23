@@ -19,6 +19,7 @@ import { useAgentMdStore } from '@/store/agentMdStore';
 import { useBrandStore } from '@/store/brandStore';
 import { useWikiStore } from '@/store/wikiStore';
 import { useAskUserStore } from '@/store/askUserStore';
+import { useActivityStore } from '@/store/activityStore';
 import { modelForConfig } from '@/lib/ai/providers';
 import { loadFrontendTools } from '@/lib/ai/tools';
 import { planThinking } from '@/lib/ai/thinking';
@@ -490,6 +491,8 @@ export function useAiSdkChat() {
                 assistantText,
               },
             }).catch((err) => console.warn('append_daily_log failed', err));
+            // Mark activity for the idle-triggered Dreaming effect.
+            useActivityStore.getState().bump();
           }
         }
       }
@@ -685,7 +688,7 @@ function isContextOverflowError(e: unknown): boolean {
 
 function formatErrorChunk(e: unknown, fallback: string): string {
   if (isContextOverflowError(e)) {
-    return '\n\n_⚠ Context window exceeded for this model. Start a new conversation to continue._';
+    return '\n\n_Context window exceeded for this model. Start a new conversation to continue._';
   }
   return `\n\n_Error: ${formatError(e) || fallback}_`;
 }

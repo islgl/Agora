@@ -83,17 +83,15 @@ pub async fn render_conversation_markdown(
     .await
     .map_err(|e| e.to_string())?;
 
-    let leaf_opt: Option<String> = sqlx::query_scalar(
-        "SELECT active_leaf_id FROM conversations WHERE id = ?",
-    )
-    .bind(conversation_id)
-    .fetch_optional(pool)
-    .await
-    .map_err(|e| e.to_string())?
-    .flatten();
+    let leaf_opt: Option<String> =
+        sqlx::query_scalar("SELECT active_leaf_id FROM conversations WHERE id = ?")
+            .bind(conversation_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(|e| e.to_string())?
+            .flatten();
 
-    let by_id: HashMap<String, &MessageRow> =
-        all_rows.iter().map(|r| (r.id.clone(), r)).collect();
+    let by_id: HashMap<String, &MessageRow> = all_rows.iter().map(|r| (r.id.clone(), r)).collect();
     let leaf_id = leaf_opt
         .filter(|id| by_id.contains_key(id))
         .or_else(|| all_rows.last().map(|r| r.id.clone()));
@@ -133,10 +131,7 @@ fn render_markdown(
         "created_at: {}\n",
         format_iso8601(conv.created_at)
     ));
-    out.push_str(&format!(
-        "exported_at: {}\n",
-        format_iso8601(now_millis())
-    ));
+    out.push_str(&format!("exported_at: {}\n", format_iso8601(now_millis())));
     out.push_str("source: Agora\n");
     out.push_str("---\n\n");
 
@@ -197,14 +192,14 @@ fn render_parts(parts: &[MessagePart]) -> String {
             MessagePart::ToolCall { name, input, .. } => {
                 let pretty = serde_json::to_string_pretty(input).unwrap_or_default();
                 buf.push_str(&format!(
-                    "> **🔧 Tool call** `{}`\n```json\n{}\n```\n\n",
+                    "> **Tool call** `{}`\n```json\n{}\n```\n\n",
                     name, pretty
                 ));
             }
             MessagePart::ToolResult {
                 content, is_error, ..
             } => {
-                let marker = if *is_error { "❌ error" } else { "✅ result" };
+                let marker = if *is_error { "Tool error" } else { "Tool result" };
                 buf.push_str(&format!(
                     "> **{}**\n```\n{}\n```\n\n",
                     marker,
