@@ -10,6 +10,12 @@
             "command": "bash .claude/hooks/require-changelog-on-push.sh",
             "timeout": 15,
             "statusMessage": "Checking CHANGELOG.md before push…"
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/require-homepage-on-release.sh",
+            "timeout": 15,
+            "statusMessage": "Checking homepage version before release push…"
           }
         ]
       }
