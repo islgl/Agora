@@ -219,20 +219,39 @@
   .nav-links a { transition: color 0.2s ease; }
   .nav-links a:hover { color: var(--terracotta); }
   .nav-theme {
-    font-family: var(--font-sans);
-    font-size: 0.88rem;
     color: var(--ink-soft);
     background: transparent;
     border: 1px solid var(--sand-deep);
     border-radius: var(--radius-md);
-    padding: 0.3rem 0.6rem;
     cursor: pointer;
-    transition: all 0.2s ease;
-    display: inline-flex; align-items: center; gap: 0.3rem;
+    width: 34px; height: 34px;
+    padding: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    transition:
+      color 0.2s ease,
+      border-color 0.2s ease,
+      background-color 0.2s ease;
+  }
+  .nav-theme span { display: none; } /* icon-only — aria-label carries the meaning */
+  .nav-theme svg {
+    transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
   }
   .nav-theme:hover {
     border-color: var(--terracotta);
     color: var(--terracotta);
+    background: color-mix(in oklab, var(--terracotta) 6%, transparent);
+  }
+  .nav-theme:hover svg {
+    transform: rotate(-18deg) scale(1.08);
+  }
+  .nav-theme:active svg {
+    transform: rotate(-180deg) scale(0.9);
+    transition-duration: 0.2s;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .nav-theme svg { transition: none; }
+    .nav-theme:hover svg,
+    .nav-theme:active svg { transform: none; }
   }
 
   /* ─── Hero ─── */
@@ -338,13 +357,31 @@
     box-shadow: 0 2px 4px rgba(20,20,19,0.1), 0 8px 20px -4px rgba(20,20,19,0.2);
   }
   .btn-secondary {
-    background: transparent;
+    background: var(--card);
     color: var(--ink);
     border-color: var(--sand-deep);
+    box-shadow: 0 1px 2px rgba(20,20,19,0.04);
+  }
+  html.dark .btn-secondary {
+    background: var(--card);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.22);
   }
   .btn-secondary:hover {
     border-color: var(--ink);
-    background: color-mix(in oklab, var(--ink) 4%, transparent);
+    background: var(--sand);
+    transform: translateY(-1px);
+    box-shadow:
+      0 2px 4px rgba(20,20,19,0.07),
+      0 6px 14px -4px rgba(20,20,19,0.14);
+  }
+  html.dark .btn-secondary:hover {
+    background: var(--sand);
+    box-shadow:
+      0 2px 4px rgba(0,0,0,0.32),
+      0 6px 14px -4px rgba(0,0,0,0.42);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .btn-secondary:hover { transform: none; }
   }
   .btn-arrow {
     transition: transform 0.25s ease;
