@@ -179,10 +179,10 @@ function InterruptInline({ text, at }: { text: string; at: number }) {
         background: 'color-mix(in oklab, var(--secondary) 65%, transparent)',
         boxShadow: '0 0 0 1px var(--border)',
       }}
-      title={`Injected mid-turn at ${stamp}`}
+      title={`Sent mid-turn at ${stamp}`}
     >
       <div className="mb-0.5 flex items-center gap-1 text-[10px] uppercase tracking-wide text-muted-foreground">
-        <span>↪ interrupt</span>
+        <span>You</span>
         <span>·</span>
         <span>{stamp}</span>
       </div>

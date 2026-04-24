@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown } from 'lucide-react';
 import { MessageBubble } from './MessageBubble';
 import { StreamingIndicator } from './StreamingIndicator';
@@ -93,16 +93,27 @@ export function MessageList({
           {messages[0]?.conversationId && (
             <ConversationTodos conversationId={messages[0].conversationId} />
           )}
-          {renderUnits.map((unit) => (
-            <MessageBubble
-              key={unit.key}
-              message={unit.message}
-              isStreaming={isStreaming}
-              onEdit={onEdit}
-              onRegenerate={onRegenerate}
-              onSwitchBranch={onSwitchBranch}
-            />
-          ))}
+          {renderUnits.map((unit, i) => {
+            const prev = i > 0 ? renderUnits[i - 1] : null;
+            const showTurnDivider =
+              unit.message.role === 'user' &&
+              !unit.message.transient &&
+              prev?.message.role === 'assistant';
+            return (
+              <Fragment key={unit.key}>
+                {showTurnDivider && (
+                  <TurnDivider createdAt={unit.message.createdAt} />
+                )}
+                <MessageBubble
+                  message={unit.message}
+                  isStreaming={isStreaming}
+                  onEdit={onEdit}
+                  onRegenerate={onRegenerate}
+                  onSwitchBranch={onSwitchBranch}
+                />
+              </Fragment>
+            );
+          })}
           {isStreaming && <StreamingIndicator />}
           <div ref={bottomRef} />
         </div>
@@ -124,6 +135,20 @@ export function MessageList({
           <ArrowDown className="size-4" />
         </button>
       )}
+    </div>
+  );
+}
+
+function TurnDivider({ createdAt }: { createdAt: number }) {
+  const stamp = new Date(createdAt).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+  return (
+    <div className="flex items-center gap-3 my-2">
+      <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
+      <span className="text-[10px] text-muted-foreground shrink-0">{stamp}</span>
+      <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
     </div>
   );
 }

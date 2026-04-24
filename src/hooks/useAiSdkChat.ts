@@ -463,6 +463,7 @@ export function useAiSdkChat() {
           await loadMessages(conversationId, true);
         } catch (err) {
           console.error('finalize failed', err);
+          await loadMessages(conversationId, true).catch(() => {});
         }
       }
       maybeRefreshTitle(conversationId, effectiveModel);
