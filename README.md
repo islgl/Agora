@@ -59,6 +59,17 @@ pnpm tauri dev       # run the desktop app in dev mode
 pnpm tauri build     # produce a release bundle under src-tauri/target/release/bundle/
 ```
 
+### Releasing
+
+CI builds the Apple Silicon `.dmg` automatically. Bump the version in `package.json`, `src-tauri/Cargo.toml`, and `src-tauri/tauri.conf.json`, update `CHANGELOG.md` and the homepage, then:
+
+```bash
+git tag v0.1.0-alpha.4
+git push origin v0.1.0-alpha.4
+```
+
+The [`release` workflow](.github/workflows/release.yml) validates the three manifests against the tag, builds on `macos-14`, and attaches the `.dmg` to a **draft** GitHub Release ready for review. To exercise the pipeline without spending a version, trigger the workflow manually from the Actions tab — dry-runs skip the manifest check and the Release step, and only drop the `.dmg` as a workflow artifact.
+
 Data layout:
 
 ```

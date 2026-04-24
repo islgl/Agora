@@ -1,0 +1,97 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Why this dry-run (e.g. 'CI smoke test'). No tag needed, no Release created."
+        required: false
+        default: 'CI dry-run'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-macos-arm64:
+    name: Build macOS DMG (aarch64)
+    runs-on: macos-14
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify tag matches package.json version
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pkg=$(node -p "require('./package.json').version")
+          cargo_pkg=$(grep -m1 '^version' src-tauri/Cargo.toml | cut -d'"' -f2)
+          tauri_pkg=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          echo "tag=$tag  package.json=$pkg  Cargo.toml=$cargo_pkg  tauri.conf.json=$tauri_pkg"
+          if [ "$tag" != "$pkg" ] || [ "$tag" != "$cargo_pkg" ] || [ "$tag" != "$tauri_pkg" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match all three manifests"
+            exit 1
+          fi
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Cache Cargo build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Tauri app and upload to draft Release
+        if: github.event_name == 'push'
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: ${{ github.ref_name }}
+          releaseBody: |
+            Agora ${{ github.ref_name }} — macOS (Apple Silicon).
+
+            See `CHANGELOG.md` for details. Download the `.dmg` below and drag `Agora.app` into `/Applications`.
+          releaseDraft: true
+          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+          args: --target aarch64-apple-darwin
+
+      - name: Build Tauri app (dry-run, no Release)
+        if: github.event_name == 'workflow_dispatch'
+        run: pnpm tauri build --target aarch64-apple-darwin
+
+      - name: Upload DMG as workflow artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agora-${{ github.event_name == 'push' && github.ref_name || format('dryrun-{0}', github.run_number) }}-aarch64-dmg
+          path: src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+          if-no-files-found: warn
+          retention-days: 14
